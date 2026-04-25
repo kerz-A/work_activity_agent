@@ -1,0 +1,17 @@
+# Маппинг alias → конкретная модель LiteLLM.
+# Меняй здесь — код не трогается.
+#
+# Используем Groq как open-source провайдер: бесплатный free tier (~30 req/min),
+# модели Meta Llama. Получить API key: https://console.groq.com/keys
+#
+# Vision: Llama 4 Scout 17B имеет встроенный multimodal. Если недоступна —
+# fallback на llama-3.2-90b-vision-preview (если ещё в проде).
+
+vision_primary: groq/meta-llama/llama-4-scout-17b-16e-instruct
+vision_fallback: groq/llama-3.2-90b-vision-preview
+text_primary: groq/llama-3.3-70b-versatile
+text_fallback: groq/llama-3.1-8b-instant
+
+# Embeddings: Groq embeddings нет. Используем HuggingFace inference (бесплатно).
+# Если не нужны embeddings — можно не заполнять; код не дёргает embed без явного вызова.
+embed_primary: huggingface/BAAI/bge-small-en-v1.5

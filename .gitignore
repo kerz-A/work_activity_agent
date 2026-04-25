@@ -1,0 +1,87 @@
+# Реальные данные пользователей — НИКОГДА в git
+data/
+.checkpoints/
+output/
+demo_output/
+*.db
+*.sqlite
+*.sqlite3
+
+# Окружение и секреты
+.env
+.env.local
+.env.*.local
+*.secret
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+pip-wheel-metadata/
+
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+
+# Тестирование и покрытие
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Линтеры и type checking
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# uv
+.python-version
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code локальные настройки
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Логи
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# LangGraph artifacts
+.langgraph_api/

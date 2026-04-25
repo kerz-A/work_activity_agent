@@ -1,0 +1,39 @@
+# Конфигурация скоринга и threshold'ов
+# Веса риска и продуктивности — по ТЗ §5 и §14
+
+risk_score:
+  weights:
+    static_ratio: 0.25                # доля статичных скриншотов
+    task_mismatch: 0.20               # несоответствие активности задаче
+    non_work_ratio: 0.15              # доля нерабочих сайтов/приложений
+    no_progress: 0.15                 # отсутствие признаков прогресса
+    pattern_repetition: 0.10          # повторяемость паттерна по дням
+    tracked_time_drift: 0.10          # расхождение с трекнутым временем
+    manager_notes: 0.05               # ручные замечания (заглушка → 0 в MVP)
+  thresholds:
+    low: 30                           # < low  → RiskLevel.LOW
+    medium: 60                        # < medium → RiskLevel.MEDIUM, иначе HIGH
+
+work_activity_score:
+  weights:
+    task_alignment: 0.25              # соответствие задаче
+    result_evidence: 0.20             # наличие результата (Git/Jira) — в MVP всегда 0
+    productive_tools_ratio: 0.15      # активность в рабочих инструментах
+    screen_dynamics: 0.15             # динамика между скринами
+    project_communication_ratio: 0.10 # проектная коммуникация
+    work_regularity: 0.10             # регулярность работы
+    no_risk_flags: 0.05               # отсутствие risk flags
+  thresholds:
+    low: 40                           # < low  → WorkActivityLevel.LOW
+    medium: 70                        # < medium → WorkActivityLevel.MEDIUM, иначе HIGH
+
+timeline:
+  static_screen:
+    min_consecutive: 4                # минимум подряд для срабатывания static_screen_long_period
+    phash_distance_threshold: 5       # max расстояние perceptual hash для "одинаковых" скринов
+  burst_detection:
+    min_count_per_hour: 3             # job_search_burst: 3+ скрина с job_search за час
+
+vision:
+  max_concurrent: 4                   # семафор параллельных vision-вызовов
+  cache_by_image_hash: true           # не пересчитывать одинаковые скрины
