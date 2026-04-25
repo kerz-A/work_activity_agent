@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cart screen — Figma</title>
+<style>
+body { margin: 0; background: #2c2c2c; font-family: 'Inter', sans-serif; }
+.toolbar { background: #1e1e1e; color: #ccc; padding: 8px 16px; font-size: 13px; }
+.canvas { padding: 60px; display: flex; justify-content: center; }
+.frame { background: white; width: 800px; height: 600px; border-radius: 12px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.cart-title { font-size: 32px; font-weight: 700; }
+.item { border-bottom: 1px solid #eee; padding: 16px 0; display: flex; justify-content: space-between; align-items: center; }
+.item-name { font-size: 16px; }
+.price { font-weight: 600; font-size: 18px; }
+.total { padding: 16px 0; font-size: 22px; font-weight: 700; text-align: right; }
+.btn { background: #6366f1; color: white; padding: 14px 24px; border-radius: 8px; text-align: center; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="toolbar">📐 Figma — Cart UI / cart_screen_v3</div>
+<div class="canvas">
+  <div class="frame">
+    <div class="cart-title">Your Cart</div>
+    <div class="item"><span class="item-name">Product A</span><span class="price">$29.99</span></div>
+    <div class="item"><span class="item-name">Product B</span><span class="price">$15.50</span></div>
+    <div class="item"><span class="item-name">Product C</span><span class="price">$42.00</span></div>
+    <div class="total">Total: $87.49</div>
+    <div class="btn">Checkout</div>
+  </div>
+</div>
+</body>
+</html>

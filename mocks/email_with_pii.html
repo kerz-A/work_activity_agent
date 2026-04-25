@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Inbox — Test Mail Client</title>
+<style>
+body { font-family: -apple-system, sans-serif; margin: 0; background: #f5f5f5; }
+.header { background: #1a73e8; color: white; padding: 16px 24px; font-size: 20px; }
+.email-list { padding: 24px; max-width: 800px; margin: 0 auto; }
+.email { background: white; border: 1px solid #ddd; border-radius: 4px; padding: 16px; margin-bottom: 12px; }
+.from { font-weight: bold; font-size: 14px; color: #333; }
+.email-addr { color: #1a73e8; font-size: 13px; }
+.subject { margin-top: 6px; font-size: 16px; }
+.preview { color: #666; font-size: 13px; margin-top: 4px; }
+.contact-info { background: #fff8dc; padding: 12px; border-radius: 4px; margin-top: 12px; font-family: monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="header">📧 Test Mail Client — Inbox (3 unread)</div>
+<div class="email-list">
+  <div class="email">
+    <div class="from">John Doe <span class="email-addr">john.doe@example.com</span></div>
+    <div class="subject">Quarterly review meeting</div>
+    <div class="preview">Hi team, please confirm your attendance by Friday. — John</div>
+    <div class="contact-info">
+      Reply to: noreply@example.com<br>
+      Direct phone: +1-555-0100<br>
+      Office: 123 Test Street, Test City
+    </div>
+  </div>
+  <div class="email">
+    <div class="from">Test User <span class="email-addr">test@example.com</span></div>
+    <div class="subject">Account verification</div>
+    <div class="preview">Your verification code is 123456. Do not share with anyone.</div>
+  </div>
+  <div class="email">
+    <div class="from">Иван Тестовый <span class="email-addr">ivan.test@example.com</span></div>
+    <div class="subject">Документы по проекту</div>
+    <div class="preview">Контактный телефон: +7-000-000-0000. Email для связи: noreply@testmail.local</div>
+  </div>
+</div>
+</body>
+</html>

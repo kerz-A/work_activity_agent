@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>#client-crm — Test Slack Workspace</title>
+<style>
+body { font-family: 'Slack-Lato', sans-serif; margin: 0; background: white; color: #1d1c1d; }
+.header { background: #4a154b; color: white; padding: 12px 20px; font-weight: 600; }
+.channel { padding: 16px 20px; border-bottom: 1px solid #e8e8e8; font-size: 18px; font-weight: 600; }
+.messages { padding: 16px 20px; }
+.msg { display: flex; gap: 12px; margin-bottom: 16px; }
+.avatar { width: 36px; height: 36px; background: #1264a3; border-radius: 4px; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+.body { flex: 1; }
+.author { font-weight: 700; font-size: 14px; }
+.time { color: #616061; font-size: 12px; margin-left: 6px; }
+.text { font-size: 14px; line-height: 1.4; margin-top: 2px; }
+.code { background: #f3f3f3; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="header">⚡ Test Workspace</div>
+<div class="channel"># client-crm</div>
+<div class="messages">
+  <div class="msg">
+    <div class="avatar">A</div>
+    <div class="body">
+      <div><span class="author">user_a</span><span class="time">10:15 AM</span></div>
+      <div class="text">Парни, кто посмотрит PR #42? Auth fix готов к review.</div>
+    </div>
+  </div>
+  <div class="msg">
+    <div class="avatar">B</div>
+    <div class="body">
+      <div><span class="author">user_b</span><span class="time">10:18 AM</span></div>
+      <div class="text">Возьму. А что там с retry логикой?</div>
+    </div>
+  </div>
+  <div class="msg">
+    <div class="avatar">A</div>
+    <div class="body">
+      <div><span class="author">user_a</span><span class="time">10:20 AM</span></div>
+      <div class="text">Добавил exponential backoff с jitter, гляди:</div>
+      <div class="code">function shouldRetry(error: Error): boolean {<br>&nbsp;&nbsp;return isTransient(error) && attempts < MAX_RETRIES;<br>}</div>
+    </div>
+  </div>
+  <div class="msg">
+    <div class="avatar">B</div>
+    <div class="body">
+      <div><span class="author">user_b</span><span class="time">10:25 AM</span></div>
+      <div class="text">Норм. Сейчас гляну тесты тоже.</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

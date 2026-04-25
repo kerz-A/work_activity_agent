@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Test Messenger — Личный чат</title>
+<style>
+body { font-family: -apple-system, sans-serif; margin: 0; background: #e5ddd5; }
+.header { background: #075e54; color: white; padding: 16px 24px; }
+.chat { max-width: 700px; margin: 0 auto; padding: 24px; }
+.msg { margin: 8px 0; padding: 10px 14px; border-radius: 8px; max-width: 70%; font-size: 14px; }
+.in { background: white; align-self: flex-start; }
+.out { background: #dcf8c6; align-self: flex-end; margin-left: auto; }
+.row { display: flex; }
+.contact { background: white; padding: 12px; border-radius: 8px; margin: 16px 0; font-size: 13px; }
+.token { font-family: monospace; background: #f0f0f0; padding: 8px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="header">💬 Чат с user_b</div>
+<div class="chat">
+  <div class="row"><div class="msg in">Привет, как дела?</div></div>
+  <div class="row"><div class="msg out">Норм, занят. А ты?</div></div>
+  <div class="row"><div class="msg in">Тоже. Можешь мне свой email скинуть?</div></div>
+  <div class="row"><div class="msg out">test@example.com</div></div>
+  <div class="row"><div class="msg in">И телефон на всякий</div></div>
+  <div class="row"><div class="msg out">+7-000-000-0000</div></div>
+  <div class="row"><div class="msg in">Спасибо! И ещё токен от тестового сервиса</div></div>
+  <div class="row"><div class="msg out"><span class="token">sk-test-abcdefghijklmnop1234567890</span></div></div>
+  <div class="contact">
+    <strong>Контакт</strong><br>
+    Иван Тестовый<br>
+    Email: ivan.test@example.com<br>
+    Phone: +7-000-000-0000
+  </div>
+</div>
+</body>
+</html>

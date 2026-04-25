@@ -1,0 +1,537 @@
+version: 1
+screenshots:
+- file: productive/dev1_vscode_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T09:00:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: productive/dev1_vscode_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T09:10:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: productive/dev1_vscode_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T09:20:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: productive/dev1_vscode_004.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T09:30:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: productive/dev1_vscode_005.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T09:40:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: productive/des1_figma_001.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T10:00:00+00:00'
+  tracked_minutes: 15
+  app_hint: Figma
+- file: productive/des1_figma_002.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T10:15:00+00:00'
+  tracked_minutes: 15
+  app_hint: Figma
+- file: productive/des1_figma_003.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T10:30:00+00:00'
+  tracked_minutes: 15
+  app_hint: Figma
+- file: productive/dev1_github_pr_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T11:00:00+00:00'
+  tracked_minutes: 10
+  app_hint: GitHub
+- file: productive/dev1_github_pr_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T11:10:00+00:00'
+  tracked_minutes: 10
+  app_hint: GitHub
+- file: productive/dev1_github_pr_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T11:20:00+00:00'
+  tracked_minutes: 10
+  app_hint: GitHub
+- file: communication/dev1_slack_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T12:00:00+00:00'
+  tracked_minutes: 5
+  app_hint: Slack
+- file: communication/dev1_slack_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T12:05:00+00:00'
+  tracked_minutes: 5
+  app_hint: Slack
+- file: communication/dev1_slack_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T12:10:00+00:00'
+  tracked_minutes: 5
+  app_hint: Slack
+- file: research/dev1_research_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T12:20:00+00:00'
+  tracked_minutes: 10
+  app_hint: StackOverflow
+- file: research/dev1_research_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T12:30:00+00:00'
+  tracked_minutes: 10
+  app_hint: MDN
+- file: research/dev1_research_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T12:40:00+00:00'
+  tracked_minutes: 10
+  app_hint: Python docs
+- file: admin/pm1_admin_001.png
+  employee_id: pm_1
+  project_id: client_crm
+  task_id: TASK-200
+  tracked_task_title: Sprint planning
+  captured_at: '2026-04-22T13:00:00+00:00'
+  tracked_minutes: 10
+  app_hint: Google Sheets
+- file: admin/pm1_admin_002.png
+  employee_id: pm_1
+  project_id: client_crm
+  task_id: TASK-200
+  tracked_task_title: Sprint planning
+  captured_at: '2026-04-22T13:10:00+00:00'
+  tracked_minutes: 10
+  app_hint: Google Sheets
+- file: admin/pm1_admin_003.png
+  employee_id: pm_1
+  project_id: client_crm
+  task_id: TASK-200
+  tracked_task_title: Sprint planning
+  captured_at: '2026-04-22T13:20:00+00:00'
+  tracked_minutes: 10
+  app_hint: Google Sheets
+- file: neutral/dev1_neutral_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T13:30:00+00:00'
+  tracked_minutes: 5
+- file: neutral/dev1_neutral_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T13:35:00+00:00'
+  tracked_minutes: 5
+- file: neutral/dev1_neutral_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T13:40:00+00:00'
+  tracked_minutes: 5
+- file: non_work/dev1_nonwork_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T14:00:00+00:00'
+  tracked_minutes: 10
+  app_hint: YouTube
+- file: non_work/dev1_nonwork_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T14:10:00+00:00'
+  tracked_minutes: 10
+  app_hint: Reddit
+- file: non_work/dev1_nonwork_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T14:20:00+00:00'
+  tracked_minutes: 10
+  app_hint: News site
+- file: job_search/dev1_jobsearch_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T14:30:00+00:00'
+  tracked_minutes: 10
+  app_hint: hh.ru
+- file: job_search/dev1_jobsearch_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T14:40:00+00:00'
+  tracked_minutes: 10
+  app_hint: LinkedIn jobs
+- file: job_search/dev1_jobsearch_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T14:50:00+00:00'
+  tracked_minutes: 10
+  app_hint: Indeed
+- file: other_project/dev1_otherproject_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T15:00:00+00:00'
+  tracked_minutes: 10
+- file: other_project/dev1_otherproject_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T15:10:00+00:00'
+  tracked_minutes: 10
+- file: other_project/dev1_otherproject_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T15:20:00+00:00'
+  tracked_minutes: 10
+- file: edge_cases/edge_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T15:30:00+00:00'
+  tracked_minutes: 5
+- file: edge_cases/edge_002.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T15:35:00+00:00'
+  tracked_minutes: 5
+- file: edge_cases/edge_003.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T15:40:00+00:00'
+  tracked_minutes: 5
+- file: timelines/static_figma/des1_static_001.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:20:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_002.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:25:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_003.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:30:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_004.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:35:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_005.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:40:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_006.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:45:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_007.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:50:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_008.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:55:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/work_to_jobsearch/dev2_transition_001.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T15:00:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: timelines/work_to_jobsearch/dev2_transition_002.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T15:10:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: timelines/work_to_jobsearch/dev2_transition_003.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T15:20:00+00:00'
+  tracked_minutes: 10
+  app_hint: VS Code
+- file: timelines/work_to_jobsearch/dev2_transition_004.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T15:30:00+00:00'
+  tracked_minutes: 10
+  app_hint: YouTube
+- file: timelines/work_to_jobsearch/dev2_transition_005.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T15:40:00+00:00'
+  tracked_minutes: 10
+  app_hint: YouTube
+- file: timelines/work_to_jobsearch/dev2_transition_006.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T15:50:00+00:00'
+  tracked_minutes: 10
+  app_hint: hh.ru
+- file: timelines/work_to_jobsearch/dev2_transition_007.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T16:00:00+00:00'
+  tracked_minutes: 10
+  app_hint: LinkedIn
+- file: timelines/work_to_jobsearch/dev2_transition_008.png
+  employee_id: developer_2
+  project_id: client_crm
+  task_id: TASK-150
+  tracked_task_title: Implement OAuth callback
+  captured_at: '2026-04-22T16:10:00+00:00'
+  tracked_minutes: 10
+  app_hint: hh.ru
+- file: timelines/productive_day/dev3_productive_001.png
+  employee_id: developer_3
+  project_id: client_crm
+  task_id: TASK-180
+  tracked_task_title: Refactor user service
+  captured_at: '2026-04-23T09:00:00+00:00'
+  tracked_minutes: 60
+  app_hint: VS Code
+- file: timelines/productive_day/dev3_productive_002.png
+  employee_id: developer_3
+  project_id: client_crm
+  task_id: TASK-180
+  tracked_task_title: Refactor user service
+  captured_at: '2026-04-23T10:00:00+00:00'
+  tracked_minutes: 60
+  app_hint: StackOverflow
+- file: timelines/productive_day/dev3_productive_003.png
+  employee_id: developer_3
+  project_id: client_crm
+  task_id: TASK-180
+  tracked_task_title: Refactor user service
+  captured_at: '2026-04-23T11:00:00+00:00'
+  tracked_minutes: 60
+  app_hint: Slack
+- file: timelines/productive_day/dev3_productive_004.png
+  employee_id: developer_3
+  project_id: client_crm
+  task_id: TASK-180
+  tracked_task_title: Refactor user service
+  captured_at: '2026-04-23T12:00:00+00:00'
+  tracked_minutes: 60
+  app_hint: GitHub
+- file: timelines/productive_day/dev3_productive_005.png
+  employee_id: developer_3
+  project_id: client_crm
+  task_id: TASK-180
+  tracked_task_title: Refactor user service
+  captured_at: '2026-04-23T13:00:00+00:00'
+  tracked_minutes: 60
+  app_hint: VS Code
+- file: sensitive/dev1_email_pii_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T16:10:00+00:00'
+  tracked_minutes: 5
+  app_hint: Email client
+- file: sensitive/dev1_banking_test_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T16:15:00+00:00'
+  tracked_minutes: 5
+  app_hint: Online banking
+- file: sensitive/dev1_private_chat_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T16:20:00+00:00'
+  tracked_minutes: 5
+  app_hint: Test Messenger
+- file: communication/dev1_slack_html_001.png
+  employee_id: developer_1
+  project_id: client_crm
+  task_id: TASK-123
+  tracked_task_title: Fix payment retry bug
+  captured_at: '2026-04-22T10:15:00+00:00'
+  tracked_minutes: 10
+  app_hint: Slack
+- file: timelines/static_figma/des1_static_html_001.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:20:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_html_002.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:25:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_html_003.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:30:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_html_004.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:35:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_html_005.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:40:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_html_006.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:45:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_html_007.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:50:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
+- file: timelines/static_figma/des1_static_html_008.png
+  employee_id: designer_1
+  project_id: cart_ui
+  task_id: TASK-50
+  tracked_task_title: Cart screen design
+  captured_at: '2026-04-22T14:55:00+00:00'
+  tracked_minutes: 5
+  app_hint: Figma
