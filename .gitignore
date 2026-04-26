@@ -74,6 +74,12 @@ desktop.ini
 *.log
 logs/
 
+# Redacted artifacts от прогонов (генерируются ImageRedaction node)
+*.redacted.png
+*.redacted.jpg
+*.redacted.jpeg
+*.redacted.webp
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
