@@ -39,12 +39,23 @@ def make_image_redaction_node(deps: Deps) -> Callable[[AgentState], AgentState]:
                         bboxes=result.bboxes_count,
                     )
             except RedactionError as e:
-                log.warning("image_redaction.failed", screenshot_id=screenshot.id, error=str(e))
+                # Graceful degradation: при ошибке redaction (например, Tesseract не установлен)
+                # передаём оригинал в Vision как fallback. Pipeline продолжается, приватность
+                # компенсируется TextRedactor'ом после Vision на visible_text.
+                log.warning(
+                    "image_redaction.failed_using_original",
+                    screenshot_id=screenshot.id,
+                    error=str(e),
+                )
+                redacted[screenshot.id] = RedactedScreenshot(
+                    original=screenshot,
+                    redacted_path=screenshot.path,
+                )
                 errors.append(
                     NodeError(
                         node="image_redaction",
                         screenshot_id=screenshot.id,
-                        message=str(e),
+                        message=f"redaction failed, using original: {e}",
                     )
                 )
 
