@@ -1,4 +1,4 @@
-"""LiteLLMProvider — единая точка интеграции с LLM (Anthropic/OpenAI/...).
+"""LiteLLMProvider — единая точка интеграции с LLM (OpenRouter/Groq/Anthropic/OpenAI/...).
 
 Под капотом — LiteLLM, поддерживает structured output через response_format=json_schema.
 Retry через tenacity, cost tracking через completion_cost.
@@ -6,8 +6,10 @@ Retry через tenacity, cost tracking через completion_cost.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
+import os
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -23,19 +25,37 @@ T = TypeVar("T", bound=BaseModel)
 _log = get_logger("litellm_provider")
 
 
+def _export_api_keys_to_env(settings: LLMSettings) -> None:
+    """LiteLLM читает API ключи / URL из os.environ. Прокидываем из pydantic settings."""
+    # Ollama base URL (для локального провайдера)
+    os.environ.setdefault("OLLAMA_API_BASE", settings.ollama_base_url)
+
+    mappings = (
+        ("OPENROUTER_API_KEY", settings.openrouter_api_key),
+        ("GROQ_API_KEY", settings.groq_api_key),
+        ("HUGGINGFACE_API_KEY", settings.huggingface_api_key),
+        ("ANTHROPIC_API_KEY", settings.anthropic_api_key),
+        ("OPENAI_API_KEY", settings.openai_api_key),
+    )
+    for env_name, secret in mappings:
+        if secret is not None and env_name not in os.environ:
+            os.environ[env_name] = secret.get_secret_value()
+
+
 class LiteLLMProvider:
     """Реализация LLMProvider через LiteLLM.
 
     Маппинг alias → real model берётся из `settings.model_aliases` (configs/models.yaml).
     """
 
-    MAX_VALIDATION_RETRIES = 2  # помимо retry на сетевые ошибки
+    MAX_VALIDATION_RETRIES = 0  # для маленьких моделей retry только раздувает контекст
 
     def __init__(self, settings: LLMSettings) -> None:
         self._settings = settings
         self._aliases = settings.model_aliases
         self._retrying = build_async_retrying(max_attempts=3)
         self._cost_total_usd: float = 0.0
+        _export_api_keys_to_env(settings)
 
     @property
     def cost_total_usd(self) -> float:
@@ -110,18 +130,37 @@ class LiteLLMProvider:
         model_alias: str,
         temperature: float,
     ) -> T:
-        """Вызов с retry на сетевые ошибки + retry на ValidationError."""
+        """Вызов с retry на сетевые ошибки + retry на ValidationError.
 
+        Сетевые/timeout ошибки оборачиваются в LLMResponseValidationError —
+        чтобы узлы могли обработать их единообразно (через except LLMResponseValidationError).
+        """
         model = self.resolve_model(model_alias)
         last_validation_error: Exception | None = None
 
         for validation_attempt in range(self.MAX_VALIDATION_RETRIES + 1):
-            content = await self._call_with_network_retry(
-                model=model,
-                messages=messages,
-                response_schema=response_schema,
-                temperature=temperature,
-            )
+            try:
+                # Жёсткий внешний timeout — LiteLLM может игнорировать свой `timeout` для Ollama.
+                content = await asyncio.wait_for(
+                    self._call_with_network_retry(
+                        model=model,
+                        messages=messages,
+                        response_schema=response_schema,
+                        temperature=temperature,
+                    ),
+                    timeout=self._settings.request_timeout_s,
+                )
+            except (TimeoutError, Exception) as e:
+                _log.warning(
+                    "llm.network_failed",
+                    schema=response_schema.__name__,
+                    error=str(e)[:200],
+                )
+                raise LLMResponseValidationError(
+                    response_schema.__name__,
+                    f"network/timeout: {type(e).__name__}: {e}",
+                    attempt=validation_attempt + 1,
+                ) from e
             try:
                 parsed_obj = json.loads(content)
                 return response_schema.model_validate(parsed_obj)
@@ -164,18 +203,14 @@ class LiteLLMProvider:
 
         async for attempt in self._retrying:
             with attempt:
+                # Используем простой json_object вместо strict json_schema —
+                # для маленьких моделей через Ollama strict grammar в 3-5 раз медленнее
+                # и часто падает в loop. Схема указывается в промпте, валидация после.
                 response = await litellm.acompletion(
                     model=model,
                     messages=messages,
                     temperature=temperature,
-                    response_format={
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": response_schema.__name__,
-                            "schema": response_schema.model_json_schema(),
-                            "strict": True,
-                        },
-                    },
+                    response_format={"type": "json_object"},
                     timeout=self._settings.request_timeout_s,
                 )
                 # Cost tracking

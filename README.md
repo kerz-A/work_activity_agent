@@ -47,13 +47,13 @@ make pre-commit
 
 ### LLM провайдер
 
-По умолчанию используется **Groq** — облачный провайдер с бесплатным free tier и open-source моделями Meta Llama:
-- **Vision**: `groq/meta-llama/llama-4-scout-17b-16e-instruct` (multimodal)
-- **Text**: `groq/llama-3.3-70b-versatile`
+По умолчанию используется **OpenRouter** — облачный агрегатор open-source моделей с бесплатным free tier:
+- **Vision**: `openrouter/meta-llama/llama-3.2-11b-vision-instruct:free`
+- **Text**: `openrouter/meta-llama/llama-3.3-70b-instruct:free`
 
-Получить API key: [console.groq.com/keys](https://console.groq.com/keys) (бесплатно, регистрация по email).
+Получить API key: [openrouter.ai/keys](https://openrouter.ai/keys) (бесплатно, OAuth через Google/GitHub).
 
-Сменить провайдера на Anthropic / OpenAI / Ollama локально — отредактируй [configs/models.yaml](configs/models.yaml) (alias → имя модели). Код не трогается.
+Сменить провайдера на Groq / Anthropic / OpenAI / Ollama локально — отредактируй [configs/models.yaml](configs/models.yaml) (alias → имя модели). Код не трогается.
 
 ### Запуск
 

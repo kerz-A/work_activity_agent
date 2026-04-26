@@ -8,12 +8,43 @@ Presidio Image Redactor рисует чёрные прямоугольники �
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 from typing import Any
 
 from work_activity_agent.domain.enums import SensitiveDataType
 from work_activity_agent.domain.errors import RedactionError
 from work_activity_agent.domain.models.screenshot import RedactedScreenshot, Screenshot
+
+# Стандартные места установки Tesseract на Windows.
+# UB-Mannheim installer ставит в "Program Files".
+_WINDOWS_TESSERACT_CANDIDATES = (
+    Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe"),
+    Path(r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"),
+    Path(os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe")),
+)
+
+
+def _autodetect_tesseract() -> Path | None:
+    """Найти tesseract.exe: сначала через PATH, потом стандартные места установки."""
+    if (cmd := shutil.which("tesseract")) is not None:
+        return Path(cmd)
+    for candidate in _WINDOWS_TESSERACT_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _configure_tesseract() -> None:
+    """Прокинуть путь к tesseract в pytesseract если его нет в PATH."""
+    try:
+        import pytesseract  # type: ignore[import-untyped]
+    except ImportError:
+        return  # презумпция — может вообще не нужен (без Presidio)
+    detected = _autodetect_tesseract()
+    if detected is not None:
+        pytesseract.pytesseract.tesseract_cmd = str(detected)
 
 # Presidio entity → наш SensitiveDataType
 _ENTITY_MAPPING: dict[str, SensitiveDataType] = {
@@ -40,6 +71,7 @@ class PresidioImageRedactor:
 
     def _ensure_redactor(self) -> Any:
         if self._redactor is None:
+            _configure_tesseract()
             try:
                 from presidio_image_redactor import ImageRedactorEngine
             except ImportError as e:

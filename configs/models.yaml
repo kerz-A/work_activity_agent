@@ -1,17 +1,19 @@
 # Маппинг alias → конкретная модель LiteLLM.
 # Меняй здесь — код не трогается.
 #
-# Используем Groq как open-source провайдер: бесплатный free tier (~30 req/min),
-# модели Meta Llama. Получить API key: https://console.groq.com/keys
+# По умолчанию: Ollama локально (бесплатно, оффлайн, без rate limits).
+# Установка: https://ollama.com/download → ollama pull gemma3:4b
 #
-# Vision: Llama 4 Scout 17B имеет встроенный multimodal. Если недоступна —
-# fallback на llama-3.2-90b-vision-preview (если ещё в проде).
+# Префикс ollama_chat/ обязателен для LiteLLM (chat completions API с vision).
 
-vision_primary: groq/meta-llama/llama-4-scout-17b-16e-instruct
-vision_fallback: groq/llama-3.2-90b-vision-preview
-text_primary: groq/llama-3.3-70b-versatile
-text_fallback: groq/llama-3.1-8b-instant
+# Gemma 3 4B — мультимодальная Google open-weights, ~3.5 GB VRAM.
+# Одна модель для vision и text — экономит VRAM (нет переключений в памяти).
+vision_primary: ollama_chat/gemma3:4b
+vision_fallback: ollama_chat/gemma3:4b
 
-# Embeddings: Groq embeddings нет. Используем HuggingFace inference (бесплатно).
-# Если не нужны embeddings — можно не заполнять; код не дёргает embed без явного вызова.
-embed_primary: huggingface/BAAI/bge-small-en-v1.5
+text_primary: ollama_chat/gemma3:4b
+text_fallback: ollama_chat/gemma3:4b
+
+# Embeddings: Ollama даёт через ollama/nomic-embed-text (если нужно).
+# В MVP не используется — оставим как заглушку.
+embed_primary: ollama/nomic-embed-text

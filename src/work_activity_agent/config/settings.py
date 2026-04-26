@@ -25,6 +25,10 @@ class LLMSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LLM_", env_file=".env", extra="ignore")
 
+    # Ollama (локально, по умолчанию). API key не нужен, можно сменить URL.
+    ollama_base_url: str = "http://localhost:11434"
+    # Облачные провайдеры (опц., если меняешь configs/models.yaml).
+    openrouter_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
     huggingface_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
