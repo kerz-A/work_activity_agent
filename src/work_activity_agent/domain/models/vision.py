@@ -4,11 +4,22 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from work_activity_agent.domain.enums import RedactionAction, SensitiveDataType
+from work_activity_agent.domain.models._validators import FlexibleStringTuple
+
+
+def _coerce_extracted_metadata(value: Any) -> Any:
+    """str/None → пустой dict. Маленькие модели часто возвращают строку вместо вложенного dict."""
+    if value is None or isinstance(value, str):
+        return {}
+    return value
+
+
+_FlexibleExtractedMetadata = BeforeValidator(_coerce_extracted_metadata)
 
 
 class ExtractedMetadata(BaseModel):
@@ -18,7 +29,7 @@ class ExtractedMetadata(BaseModel):
     или для перекрёстной проверки (например, Vision видит другую задачу в трекере).
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(frozen=True, extra="ignore", str_strip_whitespace=True)
 
     employee_hint: str | None = None
     task_hint: str | None = None
@@ -29,15 +40,19 @@ class ExtractedMetadata(BaseModel):
 class VisionResult(BaseModel):
     """Структурированный результат Vision-анализа скриншота (ТЗ §2 пример)."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(frozen=True, extra="ignore", str_strip_whitespace=True)
 
     screenshot_id: Annotated[str, Field(min_length=1)]
     visible_application: str
     visible_site: str | None = None
     visible_page_type: str | None = None
-    visible_text: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
+    visible_text: Annotated[
+        tuple[str, ...], FlexibleStringTuple, Field(max_length=20)
+    ] = ()
     interpreted_activity: str
-    extracted_metadata: ExtractedMetadata = ExtractedMetadata()
+    extracted_metadata: Annotated[
+        ExtractedMetadata, _FlexibleExtractedMetadata
+    ] = ExtractedMetadata()
     confidence: Annotated[float, Field(ge=0.0, le=1.0)]
     model_used: str
 
