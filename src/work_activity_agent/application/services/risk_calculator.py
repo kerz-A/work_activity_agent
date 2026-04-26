@@ -107,21 +107,30 @@ class RiskCalculator:
             and cls.activity_type.value in _PRODUCTIVE_CATEGORIES
         )
 
-        # task_mismatch: доля скринов с relevance=low
+        # task_mismatch: доля скринов ЭТОГО сотрудника с relevance=low.
+        # Фильтруем relevances только по screenshot_ids этого сотрудника — иначе при
+        # глобальном словаре relevances из state знаменатель ломается.
+        screenshot_ids = {s.id for s in screenshots}
         low_relevance_count = sum(
-            1 for r in relevances.values() if r.relevance == RelevanceLevel.LOW
+            1
+            for sid, r in relevances.items()
+            if sid in screenshot_ids and r.relevance == RelevanceLevel.LOW
         )
         # tracked_time_drift: пока нет реальных данных о tracked_minutes vs скриншотах
         # — заглушка, будем считать долю скринов без metadata.tracked_minutes
         tracked_drift_count = sum(1 for s in screenshots if s.metadata.tracked_minutes is None)
 
+        # Защитный clamp на случай неожиданных делений > 1.0 (например, дубликаты в данных).
+        def _clamp(v: float) -> float:
+            return max(0.0, min(1.0, v))
+
         return {
-            "static_ratio": static_count / n,
-            "task_mismatch": low_relevance_count / n if relevances else 0.0,
-            "non_work_ratio": non_work_count / n,
-            "no_progress": 1.0 - (productive_count / n),
+            "static_ratio": _clamp(static_count / n),
+            "task_mismatch": _clamp(low_relevance_count / n) if relevances else 0.0,
+            "non_work_ratio": _clamp(non_work_count / n),
+            "no_progress": _clamp(1.0 - (productive_count / n)),
             "pattern_repetition": 0.0,  # требует cross-day данных, в MVP = 0
-            "tracked_time_drift": tracked_drift_count / n,
+            "tracked_time_drift": _clamp(tracked_drift_count / n),
             "manager_notes": 0.0,  # заглушка — нет UI менеджера
         }
 
