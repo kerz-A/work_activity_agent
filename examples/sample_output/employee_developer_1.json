@@ -1,0 +1,144 @@
+{
+  "employee_id": "developer_1",
+  "date": "2026-04-25",
+  "screenshots_total": 33,
+  "tracked_time": "PT4H30M",
+  "breakdown": {
+    "productive_work": "PT1H45M",
+    "project_communication": "PT20M",
+    "research": "PT15M",
+    "admin_work": "PT0S",
+    "neutral_unclear": "PT0S",
+    "idle_static": "PT0S",
+    "non_work": "PT5M",
+    "job_search_signal": "PT15M",
+    "other_project_signal": "PT0S",
+    "sensitive_private": "PT5M",
+    "needs_human_review": "PT0S"
+  },
+  "risk_flags": [
+    {
+      "type": "job_search_site",
+      "interval": {
+        "start": "2026-04-25T21:35:05.716418Z",
+        "end": "2026-04-25T21:40:05.895000Z"
+      },
+      "severity": "high",
+      "evidence": "Серия из 3 скринов с признаками поиска работы за час",
+      "screenshot_ids": [
+        "dev1_jobsearch_001",
+        "dev1_jobsearch_002",
+        "dev1_jobsearch_003"
+      ],
+      "requires_human_review": true
+    },
+    {
+      "type": "job_search_site",
+      "interval": {
+        "start": "2026-04-25T21:35:05.716418Z",
+        "end": "2026-04-25T21:35:05.716418Z"
+      },
+      "severity": "medium",
+      "evidence": "Detected job_search_site in screenshot",
+      "screenshot_ids": [
+        "dev1_jobsearch_001"
+      ],
+      "requires_human_review": true
+    },
+    {
+      "type": "job_search_site",
+      "interval": {
+        "start": "2026-04-25T21:35:05.809108Z",
+        "end": "2026-04-25T21:35:05.809108Z"
+      },
+      "severity": "medium",
+      "evidence": "Detected job_search_site in screenshot",
+      "screenshot_ids": [
+        "dev1_jobsearch_002"
+      ],
+      "requires_human_review": true
+    },
+    {
+      "type": "job_search_site",
+      "interval": {
+        "start": "2026-04-25T21:35:05.895000Z",
+        "end": "2026-04-25T21:35:05.895000Z"
+      },
+      "severity": "medium",
+      "evidence": "Detected job_search_site in screenshot",
+      "screenshot_ids": [
+        "dev1_jobsearch_003"
+      ],
+      "requires_human_review": true
+    },
+    {
+      "type": "low_task_relevance",
+      "interval": {
+        "start": "2026-04-25T21:40:39.539359Z",
+        "end": "2026-04-25T21:40:39.539359Z"
+      },
+      "severity": "medium",
+      "evidence": "Detected low_task_relevance in screenshot",
+      "screenshot_ids": [
+        "dev1_banking_test_001"
+      ],
+      "requires_human_review": true
+    }
+  ],
+  "risk_score": {
+    "employee_id": "developer_1",
+    "date": "2026-04-25",
+    "score": 7,
+    "level": "low",
+    "components": {
+      "static_ratio": 0.0,
+      "task_mismatch": 0.12121212121212122,
+      "non_work_ratio": 0.12121212121212122,
+      "no_progress": 0.1515151515151515,
+      "pattern_repetition": 0.0,
+      "tracked_time_drift": 0.0,
+      "manager_notes": 0.0
+    },
+    "summary": "Risk score 7/100 (low). Признаков нарушения не обнаружено.",
+    "recommended_action": "Дополнительных действий не требуется."
+  },
+  "work_activity_score": {
+    "employee_id": "developer_1",
+    "date": "2026-04-25",
+    "score": 55,
+    "level": "medium",
+    "components": {
+      "task_alignment": 0.9264705882352942,
+      "result_evidence": 0.0,
+      "productive_tools_ratio": 0.7272727272727273,
+      "screen_dynamics": 1.0,
+      "project_communication_ratio": 0.12121212121212122,
+      "work_regularity": 0.1111111111111111,
+      "no_risk_flags": 0.8
+    },
+    "note": "result_evidence not available in MVP (no Git/Jira integration)"
+  },
+  "manager_summary": "Сотрудник developer_1: risk_score=7 (low), work_activity_score=55 (medium). Обнаружено 5 эпизодов, требующих ручной проверки.",
+  "evidence_links": [
+    {
+      "screenshot_id": "dev1_jobsearch_001",
+      "path": "fixtures\\screenshots\\job_search\\dev1_jobsearch_001.png",
+      "caption": "job_search_site: Серия из 3 скринов с признаками поиска работы за час"
+    },
+    {
+      "screenshot_id": "dev1_jobsearch_002",
+      "path": "fixtures\\screenshots\\job_search\\dev1_jobsearch_002.png",
+      "caption": "job_search_site: Серия из 3 скринов с признаками поиска работы за час"
+    },
+    {
+      "screenshot_id": "dev1_jobsearch_003",
+      "path": "fixtures\\screenshots\\job_search\\dev1_jobsearch_003.png",
+      "caption": "job_search_site: Серия из 3 скринов с признаками поиска работы за час"
+    },
+    {
+      "screenshot_id": "dev1_banking_test_001",
+      "path": "fixtures\\screenshots\\sensitive\\dev1_banking_test_001.png",
+      "caption": "low_task_relevance: Detected low_task_relevance in screenshot"
+    }
+  ]
+}

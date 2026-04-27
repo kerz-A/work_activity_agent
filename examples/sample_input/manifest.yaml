@@ -1,0 +1,32 @@
+# Минимальный пример manifest.yaml для запуска агента.
+# Положите рядом со скриншотами в input-директории.
+# Полная спека: docs/manifest.md
+
+version: 1
+screenshots:
+  - file: shot_001.png
+    employee_id: developer_1
+    project_id: client_crm
+    task_id: TASK-123
+    tracked_task_title: "Fix payment retry bug"
+    captured_at: '2026-04-22T09:00:00+00:00'
+    tracked_minutes: 10
+    app_hint: "VS Code"
+
+  - file: shot_002.png
+    employee_id: developer_1
+    project_id: client_crm
+    task_id: TASK-123
+    tracked_task_title: "Fix payment retry bug"
+    captured_at: '2026-04-22T09:10:00+00:00'
+    tracked_minutes: 10
+    app_hint: "VS Code"
+
+  - file: shot_003.png
+    employee_id: developer_1
+    project_id: client_crm
+    task_id: TASK-123
+    tracked_task_title: "Fix payment retry bug"
+    captured_at: '2026-04-22T09:20:00+00:00'
+    tracked_minutes: 10
+    app_hint: "Slack"
