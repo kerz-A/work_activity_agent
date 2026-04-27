@@ -39,20 +39,65 @@ _log = get_logger("litellm_provider")
 _OLLAMA_PREFIXES = ("ollama_chat/", "ollama/")
 
 
+_PROVIDER_KEY_NAMES = {
+    "openrouter": "OPENROUTER_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "huggingface": "HUGGINGFACE_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
+
+def _detect_used_providers(aliases: dict[str, str]) -> set[str]:
+    """По model_aliases определить, ключи каких cloud-провайдеров реально нужны.
+
+    Если aliases пуст (configs не загрузились) — возвращаем все провайдеры
+    (fallback на старое поведение, чтобы не сломать запуск).
+    """
+    if not aliases:
+        return set(_PROVIDER_KEY_NAMES.keys())
+
+    used: set[str] = set()
+    for model in aliases.values():
+        # litellm-формат: "<provider>/<model>" или просто "gpt-4..." (openai default).
+        if "/" in model:
+            provider = model.split("/", 1)[0].lower()
+            # ollama/ollama_chat не требуют API-ключей
+            if provider in _PROVIDER_KEY_NAMES:
+                used.add(provider)
+        elif model.startswith(("gpt-", "o1-", "o3-")):
+            used.add("openai")
+    return used
+
+
 def _export_api_keys_to_env(settings: LLMSettings) -> None:
-    """LiteLLM читает API ключи / URL из os.environ. Прокидываем из pydantic settings."""
+    """LiteLLM читает API ключи / URL из os.environ. Прокидываем из pydantic settings.
+
+    Экспортируем только ключи фактически используемых провайдеров (по model_aliases),
+    чтобы лишние секреты не утекали в дочерние процессы.
+    """
     # ВАЖНО: используем = вместо setdefault — наш settings.ollama_base_url
     # должен побеждать любой default, который мог быть в Docker-окружении.
     os.environ["OLLAMA_API_BASE"] = settings.ollama_base_url
 
+    try:
+        used_providers = _detect_used_providers(settings.model_aliases)
+    except Exception:
+        # Если не получилось загрузить aliases (битый YAML и т.п.) — fallback
+        # на экспорт всех ключей, чтобы не блокировать запуск.
+        used_providers = set(_PROVIDER_KEY_NAMES.keys())
+
     mappings = (
-        ("OPENROUTER_API_KEY", settings.openrouter_api_key),
-        ("GROQ_API_KEY", settings.groq_api_key),
-        ("HUGGINGFACE_API_KEY", settings.huggingface_api_key),
-        ("ANTHROPIC_API_KEY", settings.anthropic_api_key),
-        ("OPENAI_API_KEY", settings.openai_api_key),
+        ("openrouter", settings.openrouter_api_key),
+        ("groq", settings.groq_api_key),
+        ("huggingface", settings.huggingface_api_key),
+        ("anthropic", settings.anthropic_api_key),
+        ("openai", settings.openai_api_key),
     )
-    for env_name, secret in mappings:
+    for provider, secret in mappings:
+        if provider not in used_providers:
+            continue
+        env_name = _PROVIDER_KEY_NAMES[provider]
         if secret is not None and env_name not in os.environ:
             os.environ[env_name] = secret.get_secret_value()
 
@@ -208,46 +253,16 @@ class LiteLLMProvider:
         original_messages = list(messages)
         current_messages = list(messages)
         last_validation_error: Exception | None = None
-        last_content: str = ""
 
         for validation_attempt in range(self.MAX_VALIDATION_RETRIES + 1):
-            try:
-                content = await asyncio.wait_for(
-                    self._call_with_network_retry(
-                        model=model,
-                        messages=current_messages,
-                        response_schema=response_schema,
-                        temperature=temperature,
-                    ),
-                    timeout=self._settings.request_timeout_s,
-                )
-            except TimeoutError as e:
-                _log.warning(
-                    "llm.network_timeout",
-                    schema=response_schema.__name__,
-                    timeout_s=self._settings.request_timeout_s,
-                )
-                raise LLMNetworkError(
-                    response_schema.__name__,
-                    f"timeout after {self._settings.request_timeout_s}s: {e}",
-                    attempt=validation_attempt + 1,
-                ) from e
-            except (LLMResponseValidationError, LLMBudgetExceededError):
-                raise
-            except Exception as e:
-                _log.warning(
-                    "llm.network_failed",
-                    schema=response_schema.__name__,
-                    error=str(e)[:200],
-                )
-                hint = self._network_error_hint(model, e)
-                raise LLMNetworkError(
-                    response_schema.__name__,
-                    f"{type(e).__name__}: {e}{hint}",
-                    attempt=validation_attempt + 1,
-                ) from e
+            content = await self._network_call_with_timeout(
+                model=model,
+                messages=current_messages,
+                response_schema=response_schema,
+                temperature=temperature,
+                attempt_number=validation_attempt + 1,
+            )
 
-            last_content = content
             try:
                 parsed_obj = json.loads(content)
                 return response_schema.model_validate(parsed_obj)
@@ -259,20 +274,72 @@ class LiteLLMProvider:
                     attempt=validation_attempt + 1,
                     error=str(e)[:200],
                 )
-                feedback = (
-                    f"Your previous response failed schema validation: {e}. "
-                    f"Return strictly valid JSON matching the schema. "
-                    f"No prose, no markdown fences, just the JSON object."
-                )
-                current_messages = _trim_history_for_retry(
-                    original_messages, last_content, feedback
-                )
+                current_messages = self._build_retry_messages(original_messages, content, e)
 
         raise LLMResponseValidationError(
             response_schema.__name__,
             str(last_validation_error or "unknown"),
             attempt=self.MAX_VALIDATION_RETRIES + 1,
         )
+
+    async def _network_call_with_timeout(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        response_schema: type[BaseModel],
+        temperature: float,
+        attempt_number: int,
+    ) -> str:
+        """Обёртка над `_call_with_network_retry` с timeout и нормализацией исключений."""
+        try:
+            return await asyncio.wait_for(
+                self._call_with_network_retry(
+                    model=model,
+                    messages=messages,
+                    response_schema=response_schema,
+                    temperature=temperature,
+                ),
+                timeout=self._settings.request_timeout_s,
+            )
+        except TimeoutError as e:
+            _log.warning(
+                "llm.network_timeout",
+                schema=response_schema.__name__,
+                timeout_s=self._settings.request_timeout_s,
+            )
+            raise LLMNetworkError(
+                response_schema.__name__,
+                f"timeout after {self._settings.request_timeout_s}s: {e}",
+                attempt=attempt_number,
+            ) from e
+        except (LLMResponseValidationError, LLMBudgetExceededError):
+            raise
+        except Exception as e:
+            _log.warning(
+                "llm.network_failed",
+                schema=response_schema.__name__,
+                error=str(e)[:200],
+            )
+            hint = self._network_error_hint(model, e)
+            raise LLMNetworkError(
+                response_schema.__name__,
+                f"{type(e).__name__}: {e}{hint}",
+                attempt=attempt_number,
+            ) from e
+
+    @staticmethod
+    def _build_retry_messages(
+        original_messages: list[dict[str, Any]],
+        last_content: str,
+        validation_error: Exception,
+    ) -> list[dict[str, Any]]:
+        """Подготовить контекст следующей попытки после validation-ошибки."""
+        feedback = (
+            f"Your previous response failed schema validation: {validation_error}. "
+            f"Return strictly valid JSON matching the schema. "
+            f"No prose, no markdown fences, just the JSON object."
+        )
+        return _trim_history_for_retry(original_messages, last_content, feedback)
 
     async def _call_with_network_retry(
         self,
@@ -303,33 +370,7 @@ class LiteLLMProvider:
                     **api_base_kwarg,
                     **provider_kwargs,
                 )
-                try:
-                    cost = litellm.completion_cost(completion_response=response)
-                    self._cost_total_usd += float(cost or 0.0)
-                    _log.info(
-                        "llm.completion",
-                        model=model,
-                        cost_usd=float(cost or 0.0),
-                        cost_total_usd=self._cost_total_usd,
-                    )
-                except LLMBudgetExceededError:
-                    raise
-                except Exception as e:
-                    _log.warning("llm.cost_tracking_failed", error=str(e))
-
-                # Soft-budget enforcement: после accumulating стоимости проверяем,
-                # не превысили ли бюджет. Имеет смысл только для cloud-LLM (cost > 0).
-                budget = self._settings.soft_budget_usd
-                if budget > 0 and self._cost_total_usd > budget:
-                    _log.error(
-                        "llm.budget_exceeded",
-                        total_cost_usd=self._cost_total_usd,
-                        budget_usd=budget,
-                    )
-                    raise LLMBudgetExceededError(
-                        total_cost_usd=self._cost_total_usd,
-                        budget_usd=budget,
-                    )
+                self._track_cost_and_check_budget(response, model)
 
                 content = response.choices[0].message.content
                 if not isinstance(content, str):
@@ -340,6 +381,41 @@ class LiteLLMProvider:
                 return content
 
         raise RuntimeError("retrying loop exited without result (should not happen)")
+
+    def _track_cost_and_check_budget(self, response: Any, model: str) -> None:
+        """Обновить накопленную стоимость и поднять `LLMBudgetExceededError` при превышении.
+
+        Cost-tracking ошибки (например, неизвестная модель в litellm.completion_cost)
+        логируются на WARN и не валят запрос — стоимость 0 USD безопаснее, чем фейл.
+        """
+        import litellm
+
+        try:
+            cost = litellm.completion_cost(completion_response=response)
+            self._cost_total_usd += float(cost or 0.0)
+            _log.info(
+                "llm.completion",
+                model=model,
+                cost_usd=float(cost or 0.0),
+                cost_total_usd=self._cost_total_usd,
+            )
+        except LLMBudgetExceededError:
+            raise
+        except Exception as e:
+            _log.warning("llm.cost_tracking_failed", error=str(e))
+
+        # Soft-budget enforcement: имеет смысл только для cloud-LLM (cost > 0).
+        budget = self._settings.soft_budget_usd
+        if budget > 0 and self._cost_total_usd > budget:
+            _log.error(
+                "llm.budget_exceeded",
+                total_cost_usd=self._cost_total_usd,
+                budget_usd=budget,
+            )
+            raise LLMBudgetExceededError(
+                total_cost_usd=self._cost_total_usd,
+                budget_usd=budget,
+            )
 
     def _network_error_hint(self, model: str, error: Exception) -> str:
         """Понятная подсказка пользователю по типу network-ошибки."""

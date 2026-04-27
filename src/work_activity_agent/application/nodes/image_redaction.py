@@ -14,9 +14,10 @@ from work_activity_agent.infrastructure.observability.logging import get_logger
 def make_image_redaction_node(deps: Deps) -> Callable[[AgentState], AgentState]:
     log = get_logger("image_redaction")
     privacy_strict = deps.settings.llm.privacy_strict
-    # Redacted-файлы пишем в writable checkpoint-директорию, НЕ рядом с оригиналом.
+    # Redacted-файлы пишем в writable директорию, НЕ рядом с оригиналом.
     # Иначе ломается на read-only input volume (Docker `-v ...:/app/fixtures:ro`).
-    redacted_dir = deps.settings.checkpoint_dir / "redacted"
+    # Путь резолвится в Settings: явный redacted_dir → checkpoint_dir/redacted.
+    redacted_dir = deps.settings.resolved_redacted_dir()
     redacted_dir.mkdir(parents=True, exist_ok=True)
 
     def image_redaction_node(state: AgentState) -> AgentState:

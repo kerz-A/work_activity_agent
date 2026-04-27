@@ -43,6 +43,20 @@ _PRODUCTIVE_CATEGORIES = frozenset(
 )
 
 
+def _validate_thresholds(thresholds: dict[str, int], *, name: str) -> None:
+    """Проверить, что low < medium. Конфиг с обратным порядком сделает _level()
+    некорректным (medium-уровень никогда не сработает), но без явной ошибки."""
+    if (
+        "low" in thresholds
+        and "medium" in thresholds
+        and thresholds["low"] >= thresholds["medium"]
+    ):
+        raise ValueError(
+            f"{name}: thresholds invalid — "
+            f"low ({thresholds['low']}) must be < medium ({thresholds['medium']})"
+        )
+
+
 class RiskCalculator:
     """Считает Risk Score из метрик активности."""
 
@@ -53,6 +67,7 @@ class RiskCalculator:
     ) -> None:
         self._weights = dict(weights)
         self._thresholds = dict(thresholds)
+        _validate_thresholds(self._thresholds, name="RiskCalculator")
 
     def compute_for_employee(
         self,
@@ -89,36 +104,36 @@ class RiskCalculator:
         if n == 0:
             return {key: 0.0 for key in self._weights}
 
-        static_count = sum(
-            1
-            for s in screenshots
-            if (cls := classifications.get(s.id)) and cls.activity_type.value in _STATIC_CATEGORIES
-        )
-        non_work_count = sum(
-            1
-            for s in screenshots
-            if (cls := classifications.get(s.id))
-            and cls.activity_type.value in _NON_WORK_CATEGORIES
-        )
-        productive_count = sum(
-            1
-            for s in screenshots
-            if (cls := classifications.get(s.id))
-            and cls.activity_type.value in _PRODUCTIVE_CATEGORIES
-        )
+        # Один проход по screenshots: считаем все классификационные счётчики и
+        # tracked_drift сразу. Раньше было 4 раздельных sum() прохода.
+        static_count = 0
+        non_work_count = 0
+        productive_count = 0
+        tracked_drift_count = 0
+        screenshot_ids: set[str] = set()
+        for s in screenshots:
+            screenshot_ids.add(s.id)
+            if s.metadata.tracked_minutes is None:
+                tracked_drift_count += 1
+            cls = classifications.get(s.id)
+            if cls is None:
+                continue
+            activity = cls.activity_type.value
+            if activity in _STATIC_CATEGORIES:
+                static_count += 1
+            if activity in _NON_WORK_CATEGORIES:
+                non_work_count += 1
+            if activity in _PRODUCTIVE_CATEGORIES:
+                productive_count += 1
 
         # task_mismatch: доля скринов ЭТОГО сотрудника с relevance=low.
         # Фильтруем relevances только по screenshot_ids этого сотрудника — иначе при
         # глобальном словаре relevances из state знаменатель ломается.
-        screenshot_ids = {s.id for s in screenshots}
         low_relevance_count = sum(
             1
             for sid, r in relevances.items()
             if sid in screenshot_ids and r.relevance == RelevanceLevel.LOW
         )
-        # tracked_time_drift: пока нет реальных данных о tracked_minutes vs скриншотах
-        # — заглушка, будем считать долю скринов без metadata.tracked_minutes
-        tracked_drift_count = sum(1 for s in screenshots if s.metadata.tracked_minutes is None)
 
         # Защитный clamp на случай неожиданных делений > 1.0 (например, дубликаты в данных).
         def _clamp(v: float) -> float:

@@ -82,6 +82,20 @@ def make_classifier_node(deps: Deps) -> Callable[[AgentState], Awaitable[AgentSt
                     )
                     error_kind = "validation"
                     error_message = f"validation: {e}"
+                except LLMBudgetExceededError:
+                    # Бюджет — глобальный сигнал стопа, поднимаем наружу gather.
+                    raise
+                except Exception as e:
+                    # Defensive: любая другая ошибка не должна валить весь gather
+                    # и терять уже посчитанные классификации других скринов.
+                    log.exception(
+                        "classifier.unexpected_error",
+                        screenshot_id=screenshot_id,
+                        error_type=type(e).__name__,
+                        error=str(e)[:200],
+                    )
+                    error_kind = "unexpected"
+                    error_message = f"unexpected:{type(e).__name__}: {e}"
 
             # Fallback: не теряем скрин — записываем NEUTRAL_UNCLEAR, чтобы
             # знаменатель в RiskCalculator оставался корректным. Ошибку всё

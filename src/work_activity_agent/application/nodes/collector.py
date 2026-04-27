@@ -123,5 +123,14 @@ def _extract_timestamp(path: Path) -> datetime | None:
 
 
 def _file_mtime_utc(path: Path) -> datetime:
-    """Fallback: дата изменения файла как captured_at."""
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+    """Fallback: дата изменения файла как captured_at.
+
+    При недоступности файла (битый симлинк, гонка с удалением) возвращаем «сейчас» —
+    Screenshot.captured_at должен быть не-None, и фейл здесь не должен валить весь
+    pipeline (collector обработает множество файлов).
+    """
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+    except OSError:
+        get_logger("collector").warning("collector.mtime_unavailable", path=str(path))
+        return datetime.now(UTC)

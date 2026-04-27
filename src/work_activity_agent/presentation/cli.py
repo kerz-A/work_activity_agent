@@ -19,8 +19,27 @@ import typer
 
 from work_activity_agent.application.graph import build_graph
 from work_activity_agent.application.state import AgentState
-from work_activity_agent.config.container import build_dependencies
+from work_activity_agent.config.container import Deps, build_dependencies
 from work_activity_agent.config.settings import Settings
+from work_activity_agent.infrastructure.observability.logging import get_logger
+
+_log = get_logger("cli")
+
+
+def _ensure_utf8_console() -> None:
+    """На Windows консоль по умолчанию cp1251 — `→`/«ё» в сообщениях падают
+    с UnicodeEncodeError. Перенастраиваем stdout/stderr на utf-8 + replace,
+    чтобы CLI не падал из-за кодировки. Идемпотентно."""
+    import contextlib
+
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            with contextlib.suppress(OSError, ValueError):
+                reconfigure(encoding="utf-8", errors="replace")
+
+
+_ensure_utf8_console()
 
 app = typer.Typer(
     name="work-activity-agent",
@@ -52,87 +71,111 @@ def doctor() -> None:
     typer.echo("=" * 64)
 
     failures = 0
+    failures += _check_python()
+    failures += _check_tesseract(privacy_strict)
+    failures += _check_llm(settings, profile)
+    failures += _check_presidio(privacy_strict)
+    failures += _check_spacy(privacy_strict)
+    failures += _check_configs(settings, profile)
 
-    # 1. Python
+    typer.echo("=" * 64)
+    if failures > 0:
+        typer.echo(f"FAILED ({failures} проблем) — окружение не готово.")
+        raise typer.Exit(code=1)
+    typer.echo("OK — окружение готово к запуску.")
+
+
+def _check_python() -> int:
     py_ver = sys.version_info
     if py_ver >= (3, 12):
         typer.echo(f"[OK]   Python {py_ver.major}.{py_ver.minor}.{py_ver.micro}")
-    else:
-        typer.echo(f"[FAIL] Python {py_ver.major}.{py_ver.minor} (требуется ≥3.12)")
-        failures += 1
+        return 0
+    typer.echo(f"[FAIL] Python {py_ver.major}.{py_ver.minor} (требуется ≥3.12)")
+    return 1
 
-    # 2. Tesseract
+
+def _check_tesseract(privacy_strict: bool) -> int:
     tesseract = shutil.which("tesseract")
     if tesseract:
         typer.echo(f"[OK]   Tesseract: {tesseract}")
-    else:
-        # Попробуем стандартные Windows-пути через Presidio helper
-        from work_activity_agent.infrastructure.redaction.presidio_image_redactor import (
-            _autodetect_tesseract,
+        return 0
+
+    from work_activity_agent.infrastructure.redaction.presidio_image_redactor import (
+        _autodetect_tesseract,
+    )
+
+    detected = _autodetect_tesseract()
+    if detected:
+        typer.echo(f"[OK]   Tesseract: {detected} (autodetected)")
+        return 0
+    if privacy_strict:
+        typer.echo(
+            "[FAIL] Tesseract не найден. privacy_strict=true → скриншоты будут "
+            "отбрасываться при ошибке redaction.\n"
+            "       Установка: apt install tesseract-ocr (Linux) / "
+            "brew install tesseract (Mac) / https://github.com/UB-Mannheim/tesseract/wiki (Windows)"
         )
+        return 1
+    typer.echo(
+        "[WARN] Tesseract не найден. privacy_strict=false → оригинал PII попадёт в Vision."
+    )
+    return 0
 
-        detected = _autodetect_tesseract()
-        if detected:
-            typer.echo(f"[OK]   Tesseract: {detected} (autodetected)")
-        elif privacy_strict:
-            typer.echo(
-                "[FAIL] Tesseract не найден. privacy_strict=true → скриншоты будут "
-                "отбрасываться при ошибке redaction.\n"
-                "       Установка: apt install tesseract-ocr (Linux) / "
-                "brew install tesseract (Mac) / https://github.com/UB-Mannheim/tesseract/wiki (Windows)"
-            )
-            failures += 1
-        else:
-            typer.echo(
-                "[WARN] Tesseract не найден. privacy_strict=false → оригинал PII попадёт в Vision."
-            )
 
-    # 3. LLM (по профилю)
+def _check_llm(settings: Settings, profile: str) -> int:
     if profile == "local":
-        ollama_url = settings.llm.ollama_base_url
-        try:
-            import httpx
+        return _check_ollama(settings.llm.ollama_base_url)
+    return _check_cloud_keys(settings)
 
-            response = httpx.get(f"{ollama_url}/api/tags", timeout=3.0)
-            if response.status_code == 200:
-                models = [m.get("name", "?") for m in response.json().get("models", [])]
-                typer.echo(f"[OK]   Ollama at {ollama_url} (models: {', '.join(models) or '∅'})")
-            else:
-                typer.echo(f"[FAIL] Ollama at {ollama_url} returned {response.status_code}")
-                failures += 1
-        except Exception as e:
-            typer.echo(
-                f"[FAIL] Ollama не отвечает на {ollama_url}: {type(e).__name__}\n"
-                f"       Запустите `ollama serve` (нативно) или "
-                f"`docker compose --profile local-llm up` (Docker).\n"
-                f"       Скачать: https://ollama.com"
-            )
-            failures += 1
-    else:  # cloud
-        # Проверим что хотя бы один API key выставлен
-        any_key = any(
-            getattr(settings.llm, attr) is not None
-            for attr in (
-                "anthropic_api_key",
-                "openai_api_key",
-                "openrouter_api_key",
-                "groq_api_key",
-            )
+
+def _check_ollama(ollama_url: str) -> int:
+    try:
+        import httpx
+
+        response = httpx.get(f"{ollama_url}/api/tags", timeout=3.0)
+        if response.status_code == 200:
+            models = [m.get("name", "?") for m in response.json().get("models", [])]
+            typer.echo(f"[OK]   Ollama at {ollama_url} (models: {', '.join(models) or '∅'})")
+            return 0
+        typer.echo(f"[FAIL] Ollama at {ollama_url} returned {response.status_code}")
+        return 1
+    except Exception as e:
+        typer.echo(
+            f"[FAIL] Ollama не отвечает на {ollama_url}: {type(e).__name__}\n"
+            f"       Запустите `ollama serve` (нативно) или "
+            f"`docker compose --profile local-llm up` (Docker).\n"
+            f"       Скачать: https://ollama.com"
         )
-        if any_key:
-            typer.echo("[OK]   Хотя бы один LLM API key выставлен")
-        else:
-            typer.echo(
-                "[FAIL] Не выставлен ни один LLM_*_API_KEY для cloud-профиля.\n"
-                "       Добавьте в .env: LLM_ANTHROPIC_API_KEY=... (или OPENAI / OPENROUTER / GROQ)"
-            )
-            failures += 1
+        _log.debug("doctor.ollama_unreachable", url=ollama_url, error=str(e)[:200])
+        return 1
 
-    # 4. Presidio Image Redactor (со всеми transitive deps: opencv, presidio_analyzer)
+
+def _check_cloud_keys(settings: Settings) -> int:
+    any_key = any(
+        getattr(settings.llm, attr) is not None
+        for attr in (
+            "anthropic_api_key",
+            "openai_api_key",
+            "openrouter_api_key",
+            "groq_api_key",
+        )
+    )
+    if any_key:
+        typer.echo("[OK]   Хотя бы один LLM API key выставлен")
+        return 0
+    typer.echo(
+        "[FAIL] Не выставлен ни один LLM_*_API_KEY для cloud-профиля.\n"
+        "       Добавьте в .env: LLM_ANTHROPIC_API_KEY=... (или OPENAI / OPENROUTER / GROQ)"
+    )
+    return 1
+
+
+def _check_presidio(privacy_strict: bool) -> int:
     try:
         from presidio_image_redactor import ImageRedactorEngine  # noqa: F401
 
         typer.echo("[OK]   presidio-image-redactor импортируется")
+        return 0
     except ImportError as e:
         if privacy_strict:
             typer.echo(
@@ -142,16 +185,18 @@ def doctor() -> None:
                 "       Docker: пересоберите образ с обновлённым Dockerfile.\n"
                 "       Native: apt install libgl1 libglib2.0-0 && uv sync"
             )
-            failures += 1
-        else:
-            typer.echo(f"[WARN] presidio-image-redactor не импортируется: {e}")
+            return 1
+        typer.echo(f"[WARN] presidio-image-redactor не импортируется: {e}")
+        return 0
 
-    # 5. spaCy NLP model (нужна Presidio Analyzer)
+
+def _check_spacy(privacy_strict: bool) -> int:
     try:
         import spacy
 
         spacy.load("en_core_web_sm")
         typer.echo("[OK]   spaCy en_core_web_sm загружена")
+        return 0
     except OSError:
         if privacy_strict:
             typer.echo(
@@ -159,15 +204,18 @@ def doctor() -> None:
                 "падает → privacy_strict=true отбросит все скрины.\n"
                 "       Установка: python -m spacy download en_core_web_sm"
             )
-            failures += 1
-        else:
-            typer.echo(
-                "[WARN] spaCy en_core_web_sm не установлена. Presidio будет деградировать к fallback."
-            )
+            return 1
+        typer.echo(
+            "[WARN] spaCy en_core_web_sm не установлена. Presidio будет деградировать к fallback."
+        )
+        return 0
     except ImportError:
         typer.echo("[WARN] spacy не установлен в окружении")
+        return 0
 
-    # 6. Configs
+
+def _check_configs(settings: Settings, profile: str) -> int:
+    failures = 0
     models_path = settings.llm.resolved_models_config_path
     if models_path.exists():
         typer.echo(f"[OK]   models config: {models_path}")
@@ -184,12 +232,7 @@ def doctor() -> None:
     else:
         typer.echo(f"[FAIL] risk config не найден: {risk_path}")
         failures += 1
-
-    typer.echo("=" * 64)
-    if failures > 0:
-        typer.echo(f"FAILED ({failures} проблем) — окружение не готово.")
-        raise typer.Exit(code=1)
-    typer.echo("OK — окружение готово к запуску.")
+    return failures
 
 
 @app.command()
@@ -320,11 +363,10 @@ def validate_prompts() -> None:
     typer.echo("\nAll prompts valid.")
 
 
-def _run_graph(deps: object, input_dir: Path) -> None:
+def _run_graph(deps: Deps, input_dir: Path) -> None:
     """Сборка графа и запуск."""
-    from work_activity_agent.config.container import Deps
-
-    assert isinstance(deps, Deps)
+    if not isinstance(deps, Deps):
+        raise TypeError(f"expected Deps, got {type(deps).__name__}")
 
     graph = build_graph(deps)
     initial_state = AgentState(input_dir=input_dir)
@@ -342,6 +384,8 @@ def _run_graph(deps: object, input_dir: Path) -> None:
         )
         raise typer.Exit(code=3) from e
     except Exception as e:
+        # Полный traceback идёт в structured лог; пользователю — короткое сообщение.
+        _log.exception("cli.pipeline_failed", error_type=type(e).__name__)
         typer.echo(f"ERROR during pipeline: {type(e).__name__}: {e}", err=True)
         raise typer.Exit(code=2) from e
 

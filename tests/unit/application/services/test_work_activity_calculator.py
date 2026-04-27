@@ -131,3 +131,31 @@ class TestWorkActivityCalculator:
         r = calc.compute_for_employee("dev_1", date(2026, 4, 22), [], {}, {})
         assert r.note is not None
         assert "result_evidence" in r.note.lower()
+
+    def test_task_alignment_normalized_by_screenshots_not_relevances(
+        self, calc: WorkActivityCalculator
+    ) -> None:
+        """Регрессия: до фикса task_alignment делилось на len(relevances), и
+        даже частичная оценка LLM (2 из 100 скрин-шотов) давала ложную 1.0."""
+        screenshots = [_screenshot(f"s{i}", 9 + (i % 9)) for i in range(10)]
+        classifications = {
+            s.id: _classification(s.id, ActivityType.PRODUCTIVE_WORK) for s in screenshots
+        }
+        # LLM оценил релевантность только для 2 скринов — оба HIGH.
+        relevances = {
+            screenshots[0].id: _relevance(screenshots[0].id, RelevanceLevel.HIGH),
+            screenshots[1].id: _relevance(screenshots[1].id, RelevanceLevel.HIGH),
+        }
+        r = calc.compute_for_employee(
+            "dev_1", date(2026, 4, 22), screenshots, classifications, relevances
+        )
+        # Должно быть 2 / 10 = 0.2, а не 2 / 2 = 1.0.
+        assert r.components.task_alignment == pytest.approx(0.2)
+
+    def test_thresholds_must_be_monotonic(self) -> None:
+        """Конфиг с low >= medium недопустим — _level() становится некорректным."""
+        with pytest.raises(ValueError, match="thresholds invalid"):
+            WorkActivityCalculator(
+                weights=WEIGHTS,
+                thresholds={"low": 70, "medium": 40},
+            )

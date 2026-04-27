@@ -143,6 +143,11 @@ class TestRiskCalculator:
         )
         assert 0 <= result.score <= 100
 
+    def test_thresholds_must_be_monotonic(self) -> None:
+        """Конфиг с low >= medium даст _level() never-MEDIUM — запрещаем явно."""
+        with pytest.raises(ValueError, match="thresholds invalid"):
+            RiskCalculator(weights=WEIGHTS, thresholds={"low": 60, "medium": 30})
+
     def test_threshold_boundaries(self, calc: RiskCalculator) -> None:
         # 100% static → score должен попасть в HIGH
         screenshots = [_screenshot(f"s{i}", 9 + i) for i in range(5)]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date
 
+from work_activity_agent.application.services.risk_calculator import _validate_thresholds
 from work_activity_agent.domain.enums import (
     ActivityType,
     RelevanceLevel,
@@ -39,6 +40,7 @@ class WorkActivityCalculator:
     ) -> None:
         self._weights = dict(weights)
         self._thresholds = dict(thresholds)
+        _validate_thresholds(self._thresholds, name="WorkActivityCalculator")
 
     def compute_for_employee(
         self,
@@ -76,14 +78,18 @@ class WorkActivityCalculator:
         if n == 0:
             return ActivityComponents()
 
-        # task_alignment: доля high+medium relevance
+        # task_alignment: доля high+medium relevance ОТ ОБЩЕГО ЧИСЛА СКРИНОВ.
+        # Считаем только relevances, относящиеся к скринам этого сотрудника
+        # (relevances может приходить глобальным dict из state — отфильтруем).
+        screenshot_ids = {s.id for s in screenshots}
         if relevances:
             aligned = sum(
                 1
-                for r in relevances.values()
-                if r.relevance in {RelevanceLevel.HIGH, RelevanceLevel.MEDIUM}
+                for sid, r in relevances.items()
+                if sid in screenshot_ids
+                and r.relevance in {RelevanceLevel.HIGH, RelevanceLevel.MEDIUM}
             )
-            task_alignment = aligned / len(relevances)
+            task_alignment = aligned / n
         else:
             task_alignment = 0.0
 

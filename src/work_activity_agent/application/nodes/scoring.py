@@ -38,6 +38,12 @@ def make_scoring_node(deps: Deps) -> Callable[[AgentState], AgentState]:
             employee = s.metadata.employee_id or "_unknown"
             groups[(employee, s.captured_at.date())].append(s)
 
+        # Один проход по timeline_patterns вместо линейной фильтрации в каждой
+        # итерации цикла по сотрудникам.
+        patterns_by_employee: dict[str, list[object]] = defaultdict(list)
+        for pattern in state.timeline_patterns:
+            patterns_by_employee[pattern.employee_id].append(pattern)
+
         risk_scores: dict[str, RiskScore] = {}
         work_scores: dict[str, WorkActivityScore] = {}
 
@@ -50,7 +56,7 @@ def make_scoring_node(deps: Deps) -> Callable[[AgentState], AgentState]:
                 relevances=state.relevances,
             )
             # Считаем сколько risk_flags применимо к этому сотруднику
-            employee_patterns = [p for p in state.timeline_patterns if p.employee_id == employee_id]
+            employee_patterns = patterns_by_employee.get(employee_id, [])
             work_score = work_calc.compute_for_employee(
                 employee_id=employee_id,
                 report_date=report_date,

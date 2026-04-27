@@ -150,8 +150,22 @@ class Settings(BaseSettings):
     input_dir: Path = Path("./data/screenshots")
     output_dir: Path = Path("./data/reports")
     checkpoint_dir: Path = Path("./.checkpoints")
+    # Куда складывать редактированные копии скрин-шотов. По умолчанию —
+    # подкаталог в checkpoint_dir, но можно явно переопределить через env.
+    redacted_dir: Path | None = None
+    # Минут на один скриншот для подсчёта breakdown в отчётах. Бизнес-параметр.
+    minutes_per_screenshot: Annotated[int, Field(ge=1, le=120)] = 5
 
     @field_validator("input_dir", "output_dir", "checkpoint_dir")
     @classmethod
     def _resolve_path(cls, value: Path) -> Path:
         return value.expanduser()
+
+    @field_validator("redacted_dir")
+    @classmethod
+    def _resolve_optional_path(cls, value: Path | None) -> Path | None:
+        return value.expanduser() if value is not None else None
+
+    def resolved_redacted_dir(self) -> Path:
+        """Резолв пути для редактированных скрин-шотов (явный override → checkpoint_dir/redacted)."""
+        return self.redacted_dir if self.redacted_dir is not None else self.checkpoint_dir / "redacted"

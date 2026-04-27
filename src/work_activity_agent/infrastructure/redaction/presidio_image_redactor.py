@@ -16,6 +16,9 @@ from typing import Any
 from work_activity_agent.domain.enums import SensitiveDataType
 from work_activity_agent.domain.errors import RedactionError
 from work_activity_agent.domain.models.screenshot import RedactedScreenshot, Screenshot
+from work_activity_agent.infrastructure.observability.logging import get_logger
+
+_log = get_logger("presidio_image_redactor")
 
 # Стандартные места установки Tesseract на Windows.
 # UB-Mannheim installer ставит в "Program Files".
@@ -91,6 +94,7 @@ class PresidioImageRedactor:
 
     def __init__(self) -> None:
         self._redactor: Any | None = None
+        self._image_analyzer: Any | None = None
 
     def _ensure_redactor(self) -> Any:
         if self._redactor is None:
@@ -102,9 +106,12 @@ class PresidioImageRedactor:
                     "presidio-image-redactor not installed. Run: uv sync --all-extras --dev"
                 ) from e
             try:
+                # Один analyzer + один ImageAnalyzerEngine на весь жизненный цикл инстанса.
+                # Раньше _analyze_metadata пересоздавал spaCy NLP engine на каждый скрин,
+                # что давало десятки секунд cold-start на каждое изображение.
                 analyzer = _build_analyzer()
-                image_analyzer = ImageAnalyzerEngine(analyzer_engine=analyzer)
-                self._redactor = ImageRedactorEngine(image_analyzer_engine=image_analyzer)
+                self._image_analyzer = ImageAnalyzerEngine(analyzer_engine=analyzer)
+                self._redactor = ImageRedactorEngine(image_analyzer_engine=self._image_analyzer)
             except Exception as e:
                 raise RedactionError(
                     f"failed to initialize Presidio with spaCy model {_SPACY_MODEL!r}: {e}. "
@@ -131,21 +138,26 @@ class PresidioImageRedactor:
         except Exception as e:
             raise RedactionError(f"redaction failed for {screenshot.path}: {e}") from e
 
-        # Конвертируем в RGB: Presidio может вернуть RGBA или другой mode,
-        # а Ollama vision encoder принимает только RGB ("image: unknown format" иначе).
-        if redacted_img.mode != "RGB":
-            redacted_img = redacted_img.convert("RGB")
+        try:
+            # Конвертируем в RGB: Presidio может вернуть RGBA или другой mode,
+            # а Ollama vision encoder принимает только RGB ("image: unknown format" иначе).
+            if redacted_img.mode != "RGB":
+                converted = redacted_img.convert("RGB")
+                redacted_img.close()
+                redacted_img = converted
 
-        # Downscale до 1024 px по большей стороне.
-        # Vision-модели (Gemma 3 4B, Claude Haiku, GPT-4o-mini) эффективны при таком
-        # разрешении — больше = только медленнее без выигрыша точности.
-        # На GPU 6GB Gemma 3 крупные изображения дают timeout.
-        max_dim = 1024
-        if max(redacted_img.size) > max_dim:
-            redacted_img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+            # Downscale до 1024 px по большей стороне.
+            # Vision-модели (Gemma 3 4B, Claude Haiku, GPT-4o-mini) эффективны при таком
+            # разрешении — больше = только медленнее без выигрыша точности.
+            # На GPU 6GB Gemma 3 крупные изображения дают timeout.
+            max_dim = 1024
+            if max(redacted_img.size) > max_dim:
+                redacted_img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        redacted_img.save(output_path, format="PNG")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            redacted_img.save(output_path, format="PNG")
+        finally:
+            redacted_img.close()
 
         # Presidio Image Redactor не возвращает напрямую список найденных entities.
         # Обходное решение: запустить analyzer отдельно через OCR результаты для метаданных.
@@ -159,18 +171,32 @@ class PresidioImageRedactor:
         )
 
     def _analyze_metadata(self, image_path: Path) -> tuple[tuple[SensitiveDataType, ...], int]:
-        """Прогнать OCR + Analyzer отдельно чтобы узнать какие типы PII найдены и сколько."""
+        """Прогнать OCR + Analyzer отдельно чтобы узнать какие типы PII найдены и сколько.
+
+        Использует уже созданный self._image_analyzer (инициализируется в _ensure_redactor).
+        """
+        if self._image_analyzer is None:
+            # _ensure_redactor должен быть вызван до этого — но если не был,
+            # тихо возвращаем пустоту вместо падения (метаданные опциональны).
+            _log.warning("presidio_analyze_metadata.not_initialized")
+            return (), 0
+
         try:
-            from presidio_image_redactor import ImageAnalyzerEngine
+            from PIL import Image
         except ImportError:
             return (), 0
 
         try:
-            # Используем тот же кастомный analyzer (en_core_web_sm), что и в _ensure_redactor
-            ocr_analyzer = ImageAnalyzerEngine(analyzer_engine=_build_analyzer())
-            with __import__("PIL.Image", fromlist=["Image"]).open(image_path) as img:
-                analyzer_results = ocr_analyzer.analyze(image=img, language="en")
-        except Exception:
+            with Image.open(image_path) as img:
+                analyzer_results = self._image_analyzer.analyze(image=img, language="en")
+        except Exception as e:
+            # Не валим pipeline из-за ошибки метаданных, но фиксируем — иначе тихо
+            # потеряем сигнал о PII detection failure.
+            _log.warning(
+                "presidio_analyze_metadata.failed",
+                image_path=str(image_path),
+                error=str(e)[:200],
+            )
             return (), 0
 
         types: set[SensitiveDataType] = set()

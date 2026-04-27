@@ -25,13 +25,15 @@ from work_activity_agent.domain.models.risk import RiskFlag
 from work_activity_agent.domain.models.screenshot import Screenshot
 from work_activity_agent.infrastructure.observability.logging import get_logger
 
-# Сколько минут "стоит" один скриншот для подсчёта breakdown
+# Сколько минут "стоит" один скриншот для подсчёта breakdown.
+# Дефолт; реальное значение берётся из settings.minutes_per_screenshot.
 _MINUTES_PER_SCREENSHOT = 5
 
 
 def make_reports_node(deps: Deps) -> Callable[[AgentState], AgentState]:
     log = get_logger("reports")
     evidence_builder = EvidenceBuilder()
+    minutes_per_screenshot = deps.settings.minutes_per_screenshot
 
     def reports_node(state: AgentState) -> AgentState:
         log.info("reports.start", run_id=state.run_id)
@@ -57,17 +59,20 @@ def make_reports_node(deps: Deps) -> Callable[[AgentState], AgentState]:
             if not risk_score or not work_score:
                 continue
 
+            screenshot_id_set = {s.id for s in screenshots}
             employee_flags = tuple(
                 f
                 for f in all_flags
-                if any(sid in {s.id for s in screenshots} for sid in f.screenshot_ids)
+                if any(sid in screenshot_id_set for sid in f.screenshot_ids)
             )
             evidence_links = tuple(
                 evidence_builder.build_evidence_links(employee_flags, screenshots_by_id)
             )
 
-            breakdown = _build_breakdown(screenshots, state.classifications)
-            tracked_time = _compute_tracked_time(screenshots)
+            breakdown = _build_breakdown(
+                screenshots, state.classifications, minutes_per_screenshot
+            )
+            tracked_time = _compute_tracked_time(screenshots, minutes_per_screenshot)
             manager_summary = _build_manager_summary(
                 employee_id, risk_score, work_score, employee_flags
             )
@@ -122,6 +127,7 @@ def make_reports_node(deps: Deps) -> Callable[[AgentState], AgentState]:
 def _build_breakdown(
     screenshots: list[Screenshot],
     classifications: dict[str, ClassificationResult],
+    minutes_per_screenshot: int = _MINUTES_PER_SCREENSHOT,
 ) -> ActivityBreakdown:
     """Развёрстка по категориям: minutes_per_screenshot * count."""
     counts: dict[str, int] = defaultdict(int)
@@ -133,7 +139,7 @@ def _build_breakdown(
             counts[ActivityType.NEUTRAL_UNCLEAR.value] += 1
 
     def minute_field(count: int) -> timedelta:
-        return timedelta(minutes=count * _MINUTES_PER_SCREENSHOT)
+        return timedelta(minutes=count * minutes_per_screenshot)
 
     return ActivityBreakdown(
         productive_work=minute_field(counts.get(ActivityType.PRODUCTIVE_WORK.value, 0)),
@@ -150,11 +156,14 @@ def _build_breakdown(
     )
 
 
-def _compute_tracked_time(screenshots: list[Screenshot]) -> timedelta:
+def _compute_tracked_time(
+    screenshots: list[Screenshot],
+    minutes_per_screenshot: int = _MINUTES_PER_SCREENSHOT,
+) -> timedelta:
     total_minutes = sum((s.metadata.tracked_minutes or 0) for s in screenshots)
     if total_minutes > 0:
         return timedelta(minutes=total_minutes)
-    return timedelta(minutes=len(screenshots) * _MINUTES_PER_SCREENSHOT)
+    return timedelta(minutes=len(screenshots) * minutes_per_screenshot)
 
 
 def _build_manager_summary(
@@ -234,6 +243,9 @@ def _build_project_reports(
         team = len({s.metadata.employee_id for s in items if s.metadata.employee_id})
         dates = [s.captured_at.date() for s in items]
 
+        # n>0 здесь гарантировано выше через `if n == 0: continue`,
+        # но дублируем guard локально — защищает от случайного рефакторинга.
+        denom = n or 1
         reports.append(
             ProjectReport(
                 project_id=project_id,
@@ -241,9 +253,9 @@ def _build_project_reports(
                 period_end=max(dates),
                 team_members=team,
                 screenshots_analyzed=n,
-                productive_ratio=productive / n,
-                unclear_ratio=unclear / n,
-                non_work_ratio=non_work / n,
+                productive_ratio=productive / denom,
+                unclear_ratio=unclear / denom,
+                non_work_ratio=non_work / denom,
                 top_tools=top_tools,
             )
         )
