@@ -162,27 +162,28 @@ text_primary: openrouter/google/gemma-3-12b-it:free
 Для разработки и быстрых итераций:
 
 ```bash
-# Зависимости
-make install                       # uv sync --all-extras --dev
-cp .env.example .env
+# 1. Зависимости (Python 3.12 + 155 пакетов)
+make install                       # = uv sync --all-extras --dev
+cp .env.example .env               # Linux/Mac
+# Windows PowerShell: Copy-Item .env.example .env
 
-# Tesseract (для image redaction):
-#   Linux:   apt install tesseract-ocr
-#   Mac:     brew install tesseract
-#   Windows: https://github.com/UB-Mannheim/tesseract/wiki
+# 2. Tesseract (для image redaction):
+#    Linux:   apt install tesseract-ocr
+#    Mac:     brew install tesseract
+#    Windows: https://github.com/UB-Mannheim/tesseract/wiki
 
-# spaCy NLP-модель (для Presidio Analyzer):
-uv run python -m pip install \
-  https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+# 3. spaCy NLP-модель (12 МБ, нужна Presidio для PII detection)
+uv run python -m spacy download en_core_web_sm
 
-# Ollama локально (https://ollama.com), или cloud key в .env
+# 4. Ollama локально (https://ollama.com) — или cloud-ключ в .env
 ollama pull gemma3:4b
+# в .env поправить: LLM_OLLAMA_BASE_URL=http://localhost:11434
 
-# Проверка окружения
-work-activity-agent doctor
+# 5. Проверка окружения (ожидается все [OK])
+uv run work-activity-agent doctor
 
-# Запуск
-work-activity-agent run --input ./data/screenshots --output ./data/reports
+# 6. Запуск
+uv run work-activity-agent run --input ./data/screenshots --output ./data/reports
 ```
 
 ---
@@ -208,10 +209,17 @@ screenshots:
 
 ## Что получите на выходе
 
-См. [examples/sample_output/](examples/sample_output/):
-- `employee_<id>_<date>.md/.json` — дневной отчёт по сотруднику
-- `project_<id>_<period>.md/.json` — проектный отчёт
-- `screenshots_table.md/.json` — сводная таблица всех скринов (§15 ТЗ)
+В директории `--output` (по умолчанию `data/reports/`):
+
+| Файл | Содержимое |
+|---|---|
+| `employee_<id>_<date>.{json,md}` | Дневной отчёт по сотруднику: risk_score (0-100, level), work_activity_score, breakdown по 11 категориям, manager_summary, evidence_links |
+| `project_<id>_<period>.{json,md}` | Агрегаты по проекту: productive_ratio, unclear_ratio, non_work_ratio, top_tools, team_members |
+| `screenshots_table.{json,md}` | Плоская таблица каждого скрина: time, employee, task, activity, relevance, flags, risk, review-required (§15 ТЗ) |
+
+Примеры сгенерированных артефактов: [examples/sample_output/](examples/sample_output/).
+
+Все артефакты пишутся одновременно в JSON (для downstream-обработки) и Markdown (для чтения людям). Нумерация risk_score / work_activity_score детерминирована — одинаковые данные дают одинаковый score.
 
 ---
 
@@ -239,7 +247,9 @@ screenshots:
 | Все скрины с datetime = время копирования | Заполните `captured_at` в `manifest.yaml` — без него используется mtime файла |
 | `relevances` пустые | Заполните `tracked_task_title` в `manifest.yaml` — без него Relevance не работает |
 | `BUDGET EXCEEDED` (cloud) | Увеличьте `LLM_SOFT_BUDGET_USD` или переключитесь на `LLM_PROFILE=local` |
-| `address already in use` для порта 11434 | Другая Ollama уже запущена. Стопните native: `Stop-Process -Name ollama -Force` (PowerShell) или `pkill ollama` (Linux) |
+| `address already in use` для порта 11434 / `Only one usage of each socket address` | Ollama уже запущена как сервис (Windows Desktop запускает её автоматически). Не нужно дополнительно делать `ollama serve` — сервис уже работает, проверьте `curl http://localhost:11434/api/tags` |
+| Native: `[FAIL] spaCy en_core_web_sm не установлена` | `uv run python -m spacy download en_core_web_sm` |
+| Native: `_ensure_utf8_console` / `UnicodeEncodeError` на Windows-консоли | Уже исправлено — CLI принудительно реконфигурирует stdout/stderr на utf-8. Если всё равно ловите — обновитесь до текущей версии |
 
 В первую очередь — `work-activity-agent doctor`.
 

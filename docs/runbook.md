@@ -204,19 +204,21 @@ docker compose --profile cloud-llm run --rm \
 docker compose --profile local-llm run --rm agent doctor
 ```
 
-Выводит таблицу `[OK]` / `[WARN]` / `[FAIL]` по 6 проверкам:
+Выводит таблицу `[OK]` / `[WARN]` / `[FAIL]` по 6 проверкам (по 7-ой подсекции в local-профиле — отдельные models/risk configs):
 
-| Проверка | Что значит FAIL |
-|---|---|
-| Python ≥3.12 | Образ собран не на 3.12 — пересоберите |
-| Tesseract найден | Образ старый — пересоберите Dockerfile |
-| Ollama HTTP отвечает | Сервис не поднят / `LLM_OLLAMA_BASE_URL` указывает в неверное место |
-| presidio-image-redactor импортируется | Не хватает `libgl1`/`libglib2.0-0` (для opencv) |
-| spaCy en_core_web_sm загружена | Модель не скачана при сборке |
-| API ключ выставлен (cloud) | В `.env` нет соответствующего `LLM_*_API_KEY` |
-| `configs/*.yaml` найдены | Файлы не скопированы в образ |
+| # | Проверка | Severity | Что значит FAIL |
+|:-:|---|:-:|---|
+| 1 | Python ≥3.12 | FAIL | Образ собран не на 3.12 — пересоберите |
+| 2 | Tesseract найден | FAIL (strict) / WARN (lax) | Образ старый или native без Tesseract — поставить пакет или `LLM_PRIVACY_STRICT=false` |
+| 3 | LLM доступен (Ollama для local / API key для cloud) | FAIL | Сервис не поднят / `LLM_OLLAMA_BASE_URL` указывает в неверное место / нет `LLM_*_API_KEY` |
+| 4 | presidio-image-redactor импортируется | FAIL (strict) / WARN (lax) | Не хватает `libgl1`/`libglib2.0-0` (для opencv) |
+| 5 | spaCy en_core_web_sm загружена | FAIL (strict) / WARN (lax) | Модель не скачана при сборке/инсталле |
+| 6 | `configs/models.{profile}.yaml` найден | FAIL | Файл не скопирован в образ или путь переопределён через `LLM_MODELS_CONFIG_PATH` неверно |
+| 7 | `configs/default.yaml` найден | FAIL | Файл не скопирован в образ |
 
 При любом FAIL exit code = 1 — `docker compose run` завершится с кодом ≠ 0. Используйте в CI/CD как gate.
+
+Severity-логика: `FAIL` поднимается до `WARN` при `LLM_PRIVACY_STRICT=false` для проверок 2/4/5 — на них pipeline может работать без нужного компонента (с риском утечки PII в Vision).
 
 ---
 
@@ -333,33 +335,55 @@ docker compose --profile host-llm run --rm \
 
 ## Cleanup и переустановка
 
-### Удалить артефакты прогона (но сохранить модели Ollama)
+### Удалить артефакты прогона (но сохранить модели)
 
 ```bash
-rm -rf demo_output/* .checkpoints/* run.log
+# Linux/Mac/Git Bash
+rm -rf demo_output/* .checkpoints/* data/reports/* run.log
+
+# Windows PowerShell
+Remove-Item -Recurse -Force demo_output\*, .checkpoints\*, data\reports\*, run.log -ErrorAction SilentlyContinue
 ```
 
-### Полная переустановка Docker части
+### Полная переустановка Docker (любой профиль)
 
 ```bash
-# Стоп всех контейнеров
-docker compose --profile local-llm down
-
-# Удалить volumes (включая Ollama модели — придётся pull заново)
+# Стоп всех контейнеров и volumes (Ollama-модели в local-llm придётся pull заново)
 docker compose --profile local-llm down -v
+docker compose --profile host-llm down -v
+docker compose --profile cloud-llm down -v
 
 # Удалить образы
-docker rmi work-activity-agent:latest ollama/ollama:latest
+docker rmi -f work-activity-agent:latest
+docker rmi -f $(docker images "ollama/ollama" -q)        # Linux/Mac
+# Windows PowerShell:
+# docker images "ollama/ollama" -q | ForEach-Object { docker rmi -f $_ }
+
+# Очистить build cache (обязательно для clean rebuild)
+docker builder prune -af
 
 # Пересобрать с нуля
 docker build --no-cache -t work-activity-agent:latest .
 ```
 
+### Native: удалить .venv и кеши
+
+```bash
+# Linux/Mac
+rm -rf .venv __pycache__ .pytest_cache .mypy_cache .ruff_cache htmlcov
+
+# Windows PowerShell
+Remove-Item -Recurse -Force .venv, __pycache__, .pytest_cache, .mypy_cache, .ruff_cache, htmlcov -ErrorAction SilentlyContinue
+```
+
 ### Сброс настроек
 
 ```bash
-# Перегенерировать .env из шаблона
+# Linux/Mac
 cp .env.example .env
+
+# Windows PowerShell
+Copy-Item .env.example .env -Force
 ```
 
 ---
