@@ -1,0 +1,64 @@
+# Виртуальные окружения
+.venv/
+venv/
+env/
+
+# Python кеши
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Тестовые / линтер-артефакты
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+
+# Git и docs (не нужны в образе)
+.git/
+.gitignore
+.gitattributes
+.github/
+docs/
+tools/
+tests/
+
+# Локальные данные/output (volume-mount-ятся при запуске)
+data/
+demo_output/
+output/
+.checkpoints/
+.langgraph_api/
+
+# Redacted artifacts от прогонов
+*.redacted.png
+*.redacted.jpg
+*.redacted.jpeg
+*.redacted.webp
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude / IDE
+.claude/
+
+# Env файлы (требуем явного volume-mount)
+.env
+.env.local
+.env.*.local

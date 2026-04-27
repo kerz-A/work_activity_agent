@@ -46,6 +46,29 @@ def _configure_tesseract() -> None:
     if detected is not None:
         pytesseract.pytesseract.tesseract_cmd = str(detected)
 
+# Имя spaCy NLP-модели, которую мы предустанавливаем (Dockerfile + локально через uv).
+# Presidio Analyzer по умолчанию ищет `en_core_web_lg` (~500 MB) и при отсутствии пытается
+# скачать через pip — что в Docker (без pip в venv) даёт "No package installer found".
+# Мы явно конфигурируем Presidio на лёгкую `en_core_web_sm`.
+_SPACY_MODEL = "en_core_web_sm"
+
+
+def _build_analyzer() -> Any:
+    """Создать AnalyzerEngine с кастомным NlpEngine на en_core_web_sm (не lg).
+
+    Ленивая инициализация — тяжёлые spaCy-модели грузятся только при первом вызове.
+    """
+    from presidio_analyzer import AnalyzerEngine
+    from presidio_analyzer.nlp_engine import NlpEngineProvider
+
+    nlp_configuration = {
+        "nlp_engine_name": "spacy",
+        "models": [{"lang_code": "en", "model_name": _SPACY_MODEL}],
+    }
+    nlp_engine = NlpEngineProvider(nlp_configuration=nlp_configuration).create_engine()
+    return AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
+
+
 # Presidio entity → наш SensitiveDataType
 _ENTITY_MAPPING: dict[str, SensitiveDataType] = {
     "EMAIL_ADDRESS": SensitiveDataType.EMAIL,
@@ -73,12 +96,22 @@ class PresidioImageRedactor:
         if self._redactor is None:
             _configure_tesseract()
             try:
-                from presidio_image_redactor import ImageRedactorEngine
+                from presidio_image_redactor import ImageAnalyzerEngine, ImageRedactorEngine
             except ImportError as e:
                 raise RedactionError(
                     "presidio-image-redactor not installed. Run: uv sync --all-extras --dev"
                 ) from e
-            self._redactor = ImageRedactorEngine()
+            try:
+                analyzer = _build_analyzer()
+                image_analyzer = ImageAnalyzerEngine(analyzer_engine=analyzer)
+                self._redactor = ImageRedactorEngine(image_analyzer_engine=image_analyzer)
+            except Exception as e:
+                raise RedactionError(
+                    f"failed to initialize Presidio with spaCy model {_SPACY_MODEL!r}: {e}. "
+                    f"Install model: uv pip install "
+                    f"https://github.com/explosion/spacy-models/releases/download/"
+                    f"{_SPACY_MODEL}-3.8.0/{_SPACY_MODEL}-3.8.0-py3-none-any.whl"
+                ) from e
         return self._redactor
 
     def redact(self, screenshot: Screenshot, output_path: Path) -> RedactedScreenshot:
@@ -98,8 +131,21 @@ class PresidioImageRedactor:
         except Exception as e:
             raise RedactionError(f"redaction failed for {screenshot.path}: {e}") from e
 
+        # Конвертируем в RGB: Presidio может вернуть RGBA или другой mode,
+        # а Ollama vision encoder принимает только RGB ("image: unknown format" иначе).
+        if redacted_img.mode != "RGB":
+            redacted_img = redacted_img.convert("RGB")
+
+        # Downscale до 1024 px по большей стороне.
+        # Vision-модели (Gemma 3 4B, Claude Haiku, GPT-4o-mini) эффективны при таком
+        # разрешении — больше = только медленнее без выигрыша точности.
+        # На GPU 6GB Gemma 3 крупные изображения дают timeout.
+        max_dim = 1024
+        if max(redacted_img.size) > max_dim:
+            redacted_img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        redacted_img.save(output_path)
+        redacted_img.save(output_path, format="PNG")
 
         # Presidio Image Redactor не возвращает напрямую список найденных entities.
         # Обходное решение: запустить analyzer отдельно через OCR результаты для метаданных.
@@ -115,13 +161,13 @@ class PresidioImageRedactor:
     def _analyze_metadata(self, image_path: Path) -> tuple[tuple[SensitiveDataType, ...], int]:
         """Прогнать OCR + Analyzer отдельно чтобы узнать какие типы PII найдены и сколько."""
         try:
-            from presidio_analyzer import AnalyzerEngine
             from presidio_image_redactor import ImageAnalyzerEngine
         except ImportError:
             return (), 0
 
         try:
-            ocr_analyzer = ImageAnalyzerEngine(analyzer_engine=AnalyzerEngine())
+            # Используем тот же кастомный analyzer (en_core_web_sm), что и в _ensure_redactor
+            ocr_analyzer = ImageAnalyzerEngine(analyzer_engine=_build_analyzer())
             with __import__("PIL.Image", fromlist=["Image"]).open(image_path) as img:
                 analyzer_results = ocr_analyzer.analyze(image=img, language="en")
         except Exception:

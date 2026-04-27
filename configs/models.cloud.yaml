@@ -1,0 +1,17 @@
+# Cloud profile — Anthropic Claude (vision + structured outputs, низкая цена за токен).
+#
+# Требуется выставить ANTHROPIC_API_KEY (или LLM_ANTHROPIC_API_KEY) в .env.
+# Альтернативы: openrouter/* (через LLM_OPENROUTER_API_KEY),
+# openai/gpt-* (через LLM_OPENAI_API_KEY), groq/* (через LLM_GROQ_API_KEY).
+#
+# Haiku 4.5 — быстрая и дешёвая, поддерживает vision и JSON-структурированный вывод.
+# Sonnet 4.6 — качественнее, дороже; используем как fallback при сложных скринах.
+
+vision_primary: anthropic/claude-haiku-4-5
+vision_fallback: anthropic/claude-sonnet-4-6
+
+text_primary: anthropic/claude-haiku-4-5
+text_fallback: anthropic/claude-sonnet-4-6
+
+# Embeddings: Anthropic не предоставляет — используем OpenAI как стандарт.
+embed_primary: openai/text-embedding-3-small

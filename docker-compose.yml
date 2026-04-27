@@ -1,0 +1,76 @@
+# Профили запуска:
+#
+#   --profile host-llm    Только agent в Docker; Ollama нативно на хосте.
+#                         РЕКОМЕНДУЕТСЯ для GPU 6GB и Windows-хоста — обходит
+#                         WSL2 GPU passthrough overhead, который на vision-моделях
+#                         даёт 5-10× замедление.
+#                         Требует: ollama serve запущен на хосте.
+#
+#   --profile local-llm   Agent + Ollama, оба в Docker. Удобно для CI/serverless,
+#                         но vision на 6GB GPU крайне медленный из-за WSL2 overhead.
+#                         Для GPU: docker compose -f docker-compose.yml -f docker-compose.gpu.yml ...
+#
+#   --profile cloud-llm   Agent в Docker + Cloud LLM (Anthropic/OpenAI/OpenRouter).
+#                         Самый быстрый и точный путь, но платный.
+#                         Требует: LLM_PROFILE=cloud + соответствующий API key в .env
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: work-activity-agent:latest
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./demo_output:/app/demo_output
+      - ./fixtures:/app/fixtures:ro
+      - ./.checkpoints:/app/.checkpoints
+    profiles: ["host-llm", "local-llm", "cloud-llm"]
+    command: ["run", "--input", "/app/data/screenshots", "--output", "/app/data/reports"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false
+    # Доступ из контейнера к процессам хоста (нужно для host-llm профиля)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # Sidecar Ollama. Используется только в profile=local-llm.
+  # При profile=host-llm не запускается — agent ходит в нативную Ollama хоста.
+  # ---------------------------------------------------------------------------
+  ollama:
+    # latest — нужен для Gemma 3 (gemma3:4b требует Ollama >= 0.5.11).
+    # Ранее latest был медленный для vision из-за /api/chat — мы починили это
+    # переключением configs/models.local.yaml на префикс ollama/ (= /api/generate).
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      # Серийная обработка — на GPU 6GB параллельные vision-запросы дают OOM
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      # Держим модель в VRAM 24h (без этого выгружается через 5 мин idle)
+      OLLAMA_KEEP_ALIVE: "24h"
+      # Отладочные логи при первом запуске (видно как Ollama детектит GPU)
+      OLLAMA_DEBUG: "1"
+      # Принудительный flash attention — экономит VRAM на vision encoder
+      OLLAMA_FLASH_ATTENTION: "1"
+      # NVIDIA Container Toolkit: явно указываем capabilities
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility,graphics"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    profiles: ["local-llm"]
+
+volumes:
+  ollama-models:

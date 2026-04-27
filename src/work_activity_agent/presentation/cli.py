@@ -1,6 +1,7 @@
 """CLI агента: typer-based.
 
 Команды:
+    doctor         — проверка окружения (Tesseract / Ollama / API keys / configs)
     run            — полный прогон с реальным LLM
     dry-run        — прогон с FakeLLM (без API)
     validate-prompts — golden тесты промптов
@@ -10,6 +11,8 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
+import sys
 from pathlib import Path
 
 import typer
@@ -32,6 +35,161 @@ def version() -> None:
     from work_activity_agent import __version__
 
     typer.echo(f"work-activity-agent {__version__}")
+
+
+@app.command()
+def doctor() -> None:
+    """Проверить окружение: Python, Tesseract, Ollama / API keys, configs.
+
+    Возвращает exit=1 при FAIL.
+    """
+    settings = Settings()
+    profile = settings.llm.profile
+    privacy_strict = settings.llm.privacy_strict
+
+    typer.echo("=" * 64)
+    typer.echo(f"work-activity-agent doctor — profile={profile} strict={privacy_strict}")
+    typer.echo("=" * 64)
+
+    failures = 0
+
+    # 1. Python
+    py_ver = sys.version_info
+    if py_ver >= (3, 12):
+        typer.echo(f"[OK]   Python {py_ver.major}.{py_ver.minor}.{py_ver.micro}")
+    else:
+        typer.echo(f"[FAIL] Python {py_ver.major}.{py_ver.minor} (требуется ≥3.12)")
+        failures += 1
+
+    # 2. Tesseract
+    tesseract = shutil.which("tesseract")
+    if tesseract:
+        typer.echo(f"[OK]   Tesseract: {tesseract}")
+    else:
+        # Попробуем стандартные Windows-пути через Presidio helper
+        from work_activity_agent.infrastructure.redaction.presidio_image_redactor import (
+            _autodetect_tesseract,
+        )
+
+        detected = _autodetect_tesseract()
+        if detected:
+            typer.echo(f"[OK]   Tesseract: {detected} (autodetected)")
+        elif privacy_strict:
+            typer.echo(
+                "[FAIL] Tesseract не найден. privacy_strict=true → скриншоты будут "
+                "отбрасываться при ошибке redaction.\n"
+                "       Установка: apt install tesseract-ocr (Linux) / "
+                "brew install tesseract (Mac) / https://github.com/UB-Mannheim/tesseract/wiki (Windows)"
+            )
+            failures += 1
+        else:
+            typer.echo(
+                "[WARN] Tesseract не найден. privacy_strict=false → оригинал PII попадёт в Vision."
+            )
+
+    # 3. LLM (по профилю)
+    if profile == "local":
+        ollama_url = settings.llm.ollama_base_url
+        try:
+            import httpx
+
+            response = httpx.get(f"{ollama_url}/api/tags", timeout=3.0)
+            if response.status_code == 200:
+                models = [m.get("name", "?") for m in response.json().get("models", [])]
+                typer.echo(f"[OK]   Ollama at {ollama_url} (models: {', '.join(models) or '∅'})")
+            else:
+                typer.echo(f"[FAIL] Ollama at {ollama_url} returned {response.status_code}")
+                failures += 1
+        except Exception as e:
+            typer.echo(
+                f"[FAIL] Ollama не отвечает на {ollama_url}: {type(e).__name__}\n"
+                f"       Запустите `ollama serve` (нативно) или "
+                f"`docker compose --profile local-llm up` (Docker).\n"
+                f"       Скачать: https://ollama.com"
+            )
+            failures += 1
+    else:  # cloud
+        # Проверим что хотя бы один API key выставлен
+        any_key = any(
+            getattr(settings.llm, attr) is not None
+            for attr in (
+                "anthropic_api_key",
+                "openai_api_key",
+                "openrouter_api_key",
+                "groq_api_key",
+            )
+        )
+        if any_key:
+            typer.echo("[OK]   Хотя бы один LLM API key выставлен")
+        else:
+            typer.echo(
+                "[FAIL] Не выставлен ни один LLM_*_API_KEY для cloud-профиля.\n"
+                "       Добавьте в .env: LLM_ANTHROPIC_API_KEY=... (или OPENAI / OPENROUTER / GROQ)"
+            )
+            failures += 1
+
+    # 4. Presidio Image Redactor (со всеми transitive deps: opencv, presidio_analyzer)
+    try:
+        from presidio_image_redactor import ImageRedactorEngine  # noqa: F401
+
+        typer.echo("[OK]   presidio-image-redactor импортируется")
+    except ImportError as e:
+        if privacy_strict:
+            typer.echo(
+                f"[FAIL] presidio-image-redactor не импортируется: {e}\n"
+                "       Возможные причины: missing opencv libs (libgl1, libglib2.0-0), "
+                "или пакет не установлен.\n"
+                "       Docker: пересоберите образ с обновлённым Dockerfile.\n"
+                "       Native: apt install libgl1 libglib2.0-0 && uv sync"
+            )
+            failures += 1
+        else:
+            typer.echo(f"[WARN] presidio-image-redactor не импортируется: {e}")
+
+    # 5. spaCy NLP model (нужна Presidio Analyzer)
+    try:
+        import spacy
+
+        spacy.load("en_core_web_sm")
+        typer.echo("[OK]   spaCy en_core_web_sm загружена")
+    except OSError:
+        if privacy_strict:
+            typer.echo(
+                "[FAIL] spaCy модель en_core_web_sm не установлена. Без неё Presidio Analyzer "
+                "падает → privacy_strict=true отбросит все скрины.\n"
+                "       Установка: python -m spacy download en_core_web_sm"
+            )
+            failures += 1
+        else:
+            typer.echo(
+                "[WARN] spaCy en_core_web_sm не установлена. Presidio будет деградировать к fallback."
+            )
+    except ImportError:
+        typer.echo("[WARN] spacy не установлен в окружении")
+
+    # 6. Configs
+    models_path = settings.llm.resolved_models_config_path
+    if models_path.exists():
+        typer.echo(f"[OK]   models config: {models_path}")
+    else:
+        typer.echo(
+            f"[FAIL] models config не найден: {models_path}\n"
+            f"       Должен быть configs/models.{profile}.yaml или укажите LLM_MODELS_CONFIG_PATH"
+        )
+        failures += 1
+
+    risk_path = settings.risk.config_path
+    if risk_path.exists():
+        typer.echo(f"[OK]   risk config: {risk_path}")
+    else:
+        typer.echo(f"[FAIL] risk config не найден: {risk_path}")
+        failures += 1
+
+    typer.echo("=" * 64)
+    if failures > 0:
+        typer.echo(f"FAILED ({failures} проблем) — окружение не готово.")
+        raise typer.Exit(code=1)
+    typer.echo("OK — окружение готово к запуску.")
 
 
 @app.command()
@@ -171,8 +329,18 @@ def _run_graph(deps: object, input_dir: Path) -> None:
     graph = build_graph(deps)
     initial_state = AgentState(input_dir=input_dir)
 
+    from work_activity_agent.domain.errors import LLMBudgetExceededError
+
     try:
         final_state_raw = asyncio.run(graph.ainvoke(initial_state))
+    except LLMBudgetExceededError as e:
+        typer.echo(
+            f"\n[BUDGET EXCEEDED] {e}\n"
+            f"  Reports не сгенерированы. Увеличьте LLM_SOFT_BUDGET_USD "
+            f"в .env или переключитесь на LLM_PROFILE=local.",
+            err=True,
+        )
+        raise typer.Exit(code=3) from e
     except Exception as e:
         typer.echo(f"ERROR during pipeline: {type(e).__name__}: {e}", err=True)
         raise typer.Exit(code=2) from e

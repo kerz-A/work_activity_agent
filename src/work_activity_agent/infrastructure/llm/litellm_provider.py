@@ -1,7 +1,15 @@
-"""LiteLLMProvider — единая точка интеграции с LLM (OpenRouter/Groq/Anthropic/OpenAI/...).
+"""LiteLLMProvider — единая точка интеграции с LLM (Ollama / OpenRouter / Anthropic / OpenAI).
 
-Под капотом — LiteLLM, поддерживает structured output через response_format=json_schema.
-Retry через tenacity, cost tracking через completion_cost.
+Ключевые особенности:
+- Для Ollama-моделей включён native constrained decoding по JSON Schema через
+  `format=<schema>` (Ollama 0.5+ поддерживает grammar-based generation на уровне токенайзера —
+  модель физически не выпустит токен, нарушающий схему). Документация:
+  https://docs.ollama.com — раздел "Generate structured JSON with a schema".
+- Для cloud-моделей — `response_format={"type": "json_object"}` (плюс инструкция в промпте).
+- Validation retry: до 2 повторов с feedback от ошибки в контексте (self-healing pattern).
+- Timeout/сетевые ошибки и Pydantic ValidationError разделены — поднимаются разные
+  типы исключений (`LLMNetworkError` vs `LLMResponseValidationError`), чтобы метрики
+  показывали где именно болит.
 """
 
 from __future__ import annotations
@@ -16,7 +24,11 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from work_activity_agent.config.settings import LLMSettings
-from work_activity_agent.domain.errors import LLMResponseValidationError
+from work_activity_agent.domain.errors import (
+    LLMBudgetExceededError,
+    LLMNetworkError,
+    LLMResponseValidationError,
+)
 from work_activity_agent.infrastructure.llm.retry import build_async_retrying
 from work_activity_agent.infrastructure.observability.logging import get_logger
 
@@ -24,11 +36,14 @@ T = TypeVar("T", bound=BaseModel)
 
 _log = get_logger("litellm_provider")
 
+_OLLAMA_PREFIXES = ("ollama_chat/", "ollama/")
+
 
 def _export_api_keys_to_env(settings: LLMSettings) -> None:
     """LiteLLM читает API ключи / URL из os.environ. Прокидываем из pydantic settings."""
-    # Ollama base URL (для локального провайдера)
-    os.environ.setdefault("OLLAMA_API_BASE", settings.ollama_base_url)
+    # ВАЖНО: используем = вместо setdefault — наш settings.ollama_base_url
+    # должен побеждать любой default, который мог быть в Docker-окружении.
+    os.environ["OLLAMA_API_BASE"] = settings.ollama_base_url
 
     mappings = (
         ("OPENROUTER_API_KEY", settings.openrouter_api_key),
@@ -42,13 +57,66 @@ def _export_api_keys_to_env(settings: LLMSettings) -> None:
             os.environ[env_name] = secret.get_secret_value()
 
 
+def _is_ollama(model: str) -> bool:
+    return model.startswith(_OLLAMA_PREFIXES)
+
+
+def _build_provider_kwargs(
+    model: str,
+    response_schema: type[BaseModel],
+    temperature: float,
+) -> dict[str, Any]:
+    """Сформировать provider-specific kwargs для litellm.acompletion.
+
+    Ollama: native JSON Schema constrained decoding + расширенные options.
+    Прочие: стандартный response_format=json_object.
+    """
+    if _is_ollama(model):
+        # ВАЖНО: всё Ollama-специфичное (`format`, `options`, `keep_alive`) передаём
+        # через `extra_body`, иначе LiteLLM оборачивает наш `options` ещё одним
+        # уровнем → Ollama выдаёт WARN "invalid option provided option=options"
+        # и игнорирует параметры (включая num_predict → 128 default → обрыв JSON).
+        # `keep_alive=24h` — критично для производительности: без него Ollama
+        # выгружает модель из VRAM между запросами (ttl=5min default), и
+        # каждый запрос платит cold-start ~90 сек на GTX 1660.
+        return {
+            "extra_body": {
+                "format": response_schema.model_json_schema(),
+                "keep_alive": "24h",
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": 1024,
+                    "num_ctx": 4096,
+                    "top_p": 0.9,
+                },
+            }
+        }
+    return {"response_format": {"type": "json_object"}}
+
+
+def _trim_history_for_retry(
+    original_messages: list[dict[str, Any]],
+    last_response: str,
+    feedback: str,
+) -> list[dict[str, Any]]:
+    """Не накапливать всю историю попыток — это раздувает контекст 4–5x за пару retry.
+
+    Оставляем: оригинальный user message + последний ассистент + новый user feedback.
+    """
+    return [
+        *original_messages,
+        {"role": "assistant", "content": last_response},
+        {"role": "user", "content": feedback},
+    ]
+
+
 class LiteLLMProvider:
     """Реализация LLMProvider через LiteLLM.
 
     Маппинг alias → real model берётся из `settings.model_aliases` (configs/models.yaml).
     """
 
-    MAX_VALIDATION_RETRIES = 0  # для маленьких моделей retry только раздувает контекст
+    MAX_VALIDATION_RETRIES = 2
 
     def __init__(self, settings: LLMSettings) -> None:
         self._settings = settings
@@ -132,35 +200,54 @@ class LiteLLMProvider:
     ) -> T:
         """Вызов с retry на сетевые ошибки + retry на ValidationError.
 
-        Сетевые/timeout ошибки оборачиваются в LLMResponseValidationError —
-        чтобы узлы могли обработать их единообразно (через except LLMResponseValidationError).
+        Поднимает либо `LLMNetworkError` (timeout/HTTP/connection), либо
+        `LLMResponseValidationError` (JSON parse / Pydantic) — узлы могут
+        обрабатывать их раздельно.
         """
         model = self.resolve_model(model_alias)
+        original_messages = list(messages)
+        current_messages = list(messages)
         last_validation_error: Exception | None = None
+        last_content: str = ""
 
         for validation_attempt in range(self.MAX_VALIDATION_RETRIES + 1):
             try:
-                # Жёсткий внешний timeout — LiteLLM может игнорировать свой `timeout` для Ollama.
                 content = await asyncio.wait_for(
                     self._call_with_network_retry(
                         model=model,
-                        messages=messages,
+                        messages=current_messages,
                         response_schema=response_schema,
                         temperature=temperature,
                     ),
                     timeout=self._settings.request_timeout_s,
                 )
-            except (TimeoutError, Exception) as e:
+            except TimeoutError as e:
+                _log.warning(
+                    "llm.network_timeout",
+                    schema=response_schema.__name__,
+                    timeout_s=self._settings.request_timeout_s,
+                )
+                raise LLMNetworkError(
+                    response_schema.__name__,
+                    f"timeout after {self._settings.request_timeout_s}s: {e}",
+                    attempt=validation_attempt + 1,
+                ) from e
+            except (LLMResponseValidationError, LLMBudgetExceededError):
+                raise
+            except Exception as e:
                 _log.warning(
                     "llm.network_failed",
                     schema=response_schema.__name__,
                     error=str(e)[:200],
                 )
-                raise LLMResponseValidationError(
+                hint = self._network_error_hint(model, e)
+                raise LLMNetworkError(
                     response_schema.__name__,
-                    f"network/timeout: {type(e).__name__}: {e}",
+                    f"{type(e).__name__}: {e}{hint}",
                     attempt=validation_attempt + 1,
                 ) from e
+
+            last_content = content
             try:
                 parsed_obj = json.loads(content)
                 return response_schema.model_validate(parsed_obj)
@@ -172,18 +259,14 @@ class LiteLLMProvider:
                     attempt=validation_attempt + 1,
                     error=str(e)[:200],
                 )
-                # На следующей итерации добавляем feedback
-                messages = [
-                    *messages,
-                    {"role": "assistant", "content": content},
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Your previous response failed schema validation: {e}. "
-                            f"Return strictly valid JSON matching the schema."
-                        ),
-                    },
-                ]
+                feedback = (
+                    f"Your previous response failed schema validation: {e}. "
+                    f"Return strictly valid JSON matching the schema. "
+                    f"No prose, no markdown fences, just the JSON object."
+                )
+                current_messages = _trim_history_for_retry(
+                    original_messages, last_content, feedback
+                )
 
         raise LLMResponseValidationError(
             response_schema.__name__,
@@ -201,19 +284,25 @@ class LiteLLMProvider:
         """Один вызов LLM с retry на 429/5xx через tenacity."""
         import litellm
 
+        provider_kwargs = _build_provider_kwargs(model, response_schema, temperature)
+
+        # Явно передаём api_base для Ollama — иначе LiteLLM игнорирует env
+        # OLLAMA_API_BASE и использует свой default http://localhost:11434
+        # (что в контейнере означает «сам контейнер», не хост и не sidecar).
+        api_base_kwarg: dict[str, Any] = {}
+        if _is_ollama(model):
+            api_base_kwarg["api_base"] = self._settings.ollama_base_url
+
         async for attempt in self._retrying:
             with attempt:
-                # Используем простой json_object вместо strict json_schema —
-                # для маленьких моделей через Ollama strict grammar в 3-5 раз медленнее
-                # и часто падает в loop. Схема указывается в промпте, валидация после.
                 response = await litellm.acompletion(
                     model=model,
                     messages=messages,
                     temperature=temperature,
-                    response_format={"type": "json_object"},
                     timeout=self._settings.request_timeout_s,
+                    **api_base_kwarg,
+                    **provider_kwargs,
                 )
-                # Cost tracking
                 try:
                     cost = litellm.completion_cost(completion_response=response)
                     self._cost_total_usd += float(cost or 0.0)
@@ -223,8 +312,24 @@ class LiteLLMProvider:
                         cost_usd=float(cost or 0.0),
                         cost_total_usd=self._cost_total_usd,
                     )
+                except LLMBudgetExceededError:
+                    raise
                 except Exception as e:
                     _log.warning("llm.cost_tracking_failed", error=str(e))
+
+                # Soft-budget enforcement: после accumulating стоимости проверяем,
+                # не превысили ли бюджет. Имеет смысл только для cloud-LLM (cost > 0).
+                budget = self._settings.soft_budget_usd
+                if budget > 0 and self._cost_total_usd > budget:
+                    _log.error(
+                        "llm.budget_exceeded",
+                        total_cost_usd=self._cost_total_usd,
+                        budget_usd=budget,
+                    )
+                    raise LLMBudgetExceededError(
+                        total_cost_usd=self._cost_total_usd,
+                        budget_usd=budget,
+                    )
 
                 content = response.choices[0].message.content
                 if not isinstance(content, str):
@@ -235,6 +340,41 @@ class LiteLLMProvider:
                 return content
 
         raise RuntimeError("retrying loop exited without result (should not happen)")
+
+    def _network_error_hint(self, model: str, error: Exception) -> str:
+        """Понятная подсказка пользователю по типу network-ошибки."""
+        err_str = str(error).lower()
+        is_connection = (
+            "connection" in err_str
+            or "refused" in err_str
+            or "unable to connect" in err_str
+            or "name or service" in err_str
+        )
+        if not is_connection:
+            return ""
+        if _is_ollama(model):
+            return (
+                f"\n  >> Ollama не отвечает на {self._settings.ollama_base_url}.\n"
+                f"    Запустите `ollama serve` (нативно) ИЛИ\n"
+                f"    `docker compose --profile local-llm up` (через Docker).\n"
+                f"    Скачать Ollama: https://ollama.com"
+            )
+        # cloud провайдер
+        provider_hint = ""
+        if model.startswith("anthropic/"):
+            provider_hint = "ANTHROPIC_API_KEY"
+        elif model.startswith(("openai/", "gpt-")):
+            provider_hint = "OPENAI_API_KEY"
+        elif model.startswith("openrouter/"):
+            provider_hint = "OPENROUTER_API_KEY"
+        elif model.startswith("groq/"):
+            provider_hint = "GROQ_API_KEY"
+        if provider_hint:
+            return (
+                f"\n  >> Не могу подключиться к cloud LLM. Проверьте, что выставлен "
+                f"`LLM_{provider_hint}` в .env."
+            )
+        return ""
 
     @staticmethod
     def _encode_image(image: Path | bytes) -> str:

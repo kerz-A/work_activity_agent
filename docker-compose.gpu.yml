@@ -1,0 +1,16 @@
+# GPU override для Ollama. Применять вместе с основным compose:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile local-llm up
+#
+# Требуется NVIDIA Container Toolkit:
+#   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

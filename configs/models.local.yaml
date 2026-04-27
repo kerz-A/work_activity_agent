@@ -1,0 +1,21 @@
+# Local profile — Ollama (бесплатно, оффлайн, без rate limits).
+#
+# Установка: https://ollama.com/download → ollama pull gemma3:4b
+#
+# ВАЖНО — префиксы:
+#   ollama/<model>      → /api/generate (быстро для vision на GPU 6GB: ~2-5s/скрин)
+#   ollama_chat/<model> → /api/chat     (для vision крайне медленный: ~7-8 минут/скрин!
+#                                         prompt_eval_duration аномально большой,
+#                                         известный issue Ollama для multimodal в chat-API)
+# Используем ollama/ для всего — vision и text работают одинаково хорошо.
+#
+# Gemma 3 4B — мультимодальная Google open-weights, ~3.5 GB VRAM.
+
+vision_primary: ollama/gemma3:4b
+vision_fallback: ollama/gemma3:4b
+
+text_primary: ollama/gemma3:4b
+text_fallback: ollama/gemma3:4b
+
+# Embeddings: в MVP не используется — заглушка.
+embed_primary: ollama/nomic-embed-text
