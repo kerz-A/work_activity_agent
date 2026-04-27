@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Annotated, Any, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BeforeValidator
 

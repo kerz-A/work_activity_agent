@@ -37,3 +37,12 @@ timeline:
 vision:
   max_concurrent: 4                   # семафор параллельных vision-вызовов
   cache_by_image_hash: true           # не пересчитывать одинаковые скрины
+
+classifier:
+  max_concurrent: 2                   # семафор параллельных classify-вызовов
+                                      # (локальная Gemma на 6GB GPU не тянет больше)
+
+relevance:
+  max_concurrent: 2                   # семафор параллельных relevance-вызовов
+                                      # (без него все 68 запросов летят в Ollama одновременно
+                                      # → connection errors на 1660/6GB)

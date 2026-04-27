@@ -15,10 +15,19 @@ from work_activity_agent.config.settings import (
 
 
 class TestLLMSettings:
-    def test_defaults(self) -> None:
-        s = LLMSettings()
-        assert s.max_concurrent_vision == 4
-        assert s.request_timeout_s == 60
+    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Изолируем от .env файла на диске и LLM_* переменных окружения
+        for key in (
+            "LLM_ANTHROPIC_API_KEY",
+            "LLM_OPENAI_API_KEY",
+            "LLM_OPENROUTER_API_KEY",
+            "LLM_GROQ_API_KEY",
+            "LLM_HUGGINGFACE_API_KEY",
+        ):
+            monkeypatch.delenv(key, raising=False)
+        s = LLMSettings(_env_file=None)  # type: ignore[call-arg]
+        assert s.max_concurrent_vision == 2
+        assert s.request_timeout_s == 180
         assert s.soft_budget_usd == 5.0
         assert s.anthropic_api_key is None
 

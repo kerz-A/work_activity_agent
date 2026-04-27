@@ -43,6 +43,36 @@ class LLMResponseValidationError(DomainError):
         self.attempt = attempt
 
 
+class LLMNetworkError(DomainError):
+    """Сетевая/timeout/HTTP ошибка вызова LLM. Отделена от validation чтобы
+    в метриках было видно, упирается pipeline в Ollama или в Pydantic-схему."""
+
+    def __init__(self, schema_name: str, reason: str, *, attempt: int = 1) -> None:
+        super().__init__(
+            f"LLM network failure for {schema_name} (attempt {attempt}): {reason[:200]}"
+        )
+        self.schema_name = schema_name
+        self.reason = reason
+        self.attempt = attempt
+
+
+class LLMBudgetExceededError(DomainError):
+    """Превышен soft_budget_usd на стоимость LLM-вызовов.
+
+    Поднимается из LiteLLMProvider после accumulating cost. Graph ловит
+    эту ошибку и завершается gracefully с partial state — Reports узел
+    отрабатывает на том что уже собрано до превышения бюджета.
+    """
+
+    def __init__(self, total_cost_usd: float, budget_usd: float) -> None:
+        super().__init__(
+            f"LLM budget exceeded: ${total_cost_usd:.4f} > ${budget_usd:.4f}. "
+            f"Pipeline stopped to prevent cost runaway."
+        )
+        self.total_cost_usd = total_cost_usd
+        self.budget_usd = budget_usd
+
+
 class RedactionError(DomainError):
     """Ошибка при работе redactor'а."""
 

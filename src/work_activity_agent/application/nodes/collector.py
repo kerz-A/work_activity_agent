@@ -90,7 +90,13 @@ def _build_screenshot(
     rel_path = path.relative_to(input_root).as_posix()
     metadata = manifest.get(rel_path, ScreenshotMetadata())
 
-    captured_at = _extract_timestamp(path) or _file_mtime_utc(path)
+    # Приоритет: manifest.captured_at → имя файла по конвенции → mtime файла.
+    # Manifest — единственный авторитетный источник времени скриншота на проде.
+    captured_at = (
+        metadata.captured_at
+        or _extract_timestamp(path)
+        or _file_mtime_utc(path)
+    )
     screenshot_id = path.stem
 
     return Screenshot(

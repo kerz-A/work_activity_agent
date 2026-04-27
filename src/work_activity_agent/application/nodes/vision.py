@@ -7,7 +7,11 @@ from collections.abc import Awaitable, Callable
 
 from work_activity_agent.application.state import AgentState, NodeError
 from work_activity_agent.config.container import Deps
-from work_activity_agent.domain.errors import LLMResponseValidationError
+from work_activity_agent.domain.errors import (
+    LLMBudgetExceededError,
+    LLMNetworkError,
+    LLMResponseValidationError,
+)
 from work_activity_agent.domain.models.screenshot import RedactedScreenshot
 from work_activity_agent.domain.models.vision import VisionResult
 from work_activity_agent.infrastructure.observability.logging import get_logger
@@ -18,11 +22,19 @@ def make_vision_node(deps: Deps) -> Callable[[AgentState], Awaitable[AgentState]
     semaphore = asyncio.Semaphore(deps.settings.llm.max_concurrent_vision)
 
     async def vision_node(state: AgentState) -> AgentState:
+        input_count = len(state.redacted_screenshots)
         log.info(
             "vision.start",
             run_id=state.run_id,
-            screenshots_count=len(state.redacted_screenshots),
+            screenshots_count=input_count,
         )
+        if input_count == 0:
+            log.warning(
+                "vision.skipped_empty_input",
+                hint="redacted_screenshots is empty — check image_redaction node "
+                "(privacy_strict drops on RedactionError; verify Tesseract + spaCy)",
+            )
+            return state.model_copy(update={"vision_results": {}})
 
         prompt_template = deps.prompt_loader.load("vision_describe")
 
@@ -48,20 +60,39 @@ def make_vision_node(deps: Deps) -> Callable[[AgentState], Awaitable[AgentState]
                     results[screenshot_id] = result.model_copy(
                         update={"visible_text": masked_texts}
                     )
-                except LLMResponseValidationError as e:
-                    log.warning("vision.failed", screenshot_id=screenshot_id, error=str(e)[:200])
+                except (LLMResponseValidationError, LLMNetworkError) as e:
+                    kind = "network" if isinstance(e, LLMNetworkError) else "validation"
+                    log.warning(
+                        "vision.failed",
+                        screenshot_id=screenshot_id,
+                        kind=kind,
+                        error=str(e)[:200],
+                    )
                     errors.append(
                         NodeError(
                             node="vision",
                             screenshot_id=screenshot_id,
-                            message=str(e)[:500],
+                            message=f"{kind}: {e}"[:500],
                         )
                     )
 
-        await asyncio.gather(
-            *(_process(r) for r in state.redacted_screenshots.values()),
-            return_exceptions=False,
-        )
+        try:
+            await asyncio.gather(
+                *(_process(r) for r in state.redacted_screenshots.values()),
+                return_exceptions=False,
+            )
+        except LLMBudgetExceededError as e:
+            # Бюджет превышен в середине Vision — отдаём partial state.
+            # Дальше Classifier/Relevance/Timeline/Reports отработают на том что успели.
+            log.error(
+                "vision.budget_exceeded",
+                processed=len(results),
+                total=len(state.redacted_screenshots),
+                error=str(e),
+            )
+            errors.append(
+                NodeError(node="vision", screenshot_id=None, message=f"budget_exceeded: {e}")
+            )
 
         log.info("vision.done", success=len(results), errors=len(errors))
         return state.model_copy(

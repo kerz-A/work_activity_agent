@@ -26,6 +26,14 @@ class ScreenshotMetadata(BaseModel):
     tracked_task_title: str | None = None
     tracked_minutes: Annotated[int, Field(ge=0)] | None = None
     app_hint: str | None = None
+    captured_at: datetime | None = None
+
+    @field_validator("captured_at")
+    @classmethod
+    def _ensure_utc_metadata(cls, value: datetime | None) -> datetime | None:
+        if value is not None and value.tzinfo is None:
+            raise ValueError("captured_at must be timezone-aware (use UTC)")
+        return value
 
 
 class Screenshot(BaseModel):

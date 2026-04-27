@@ -26,7 +26,8 @@ class YamlManifestLoader:
             app_hint: "VS Code"
 
     Возвращает dict[относительный_путь_файла, ScreenshotMetadata].
-    Поле `captured_at` намеренно не маппится сюда — оно живёт в Screenshot, не в metadata.
+    `captured_at` парсится как ISO-8601 (с обязательным timezone) и затем используется
+    в collector.py как авторитетный источник времени скриншота (приоритет над mtime файла).
     """
 
     SUPPORTED_VERSIONS = (1,)
@@ -83,7 +84,9 @@ class YamlManifestLoader:
 
     @staticmethod
     def _extract_metadata_fields(entry: dict[str, Any]) -> dict[str, Any]:
-        """Отфильтровать только поля ScreenshotMetadata."""
+        """Отфильтровать только поля ScreenshotMetadata. Распарсить captured_at если есть."""
+        from datetime import datetime
+
         allowed = {
             "employee_id",
             "project_id",
@@ -91,5 +94,14 @@ class YamlManifestLoader:
             "tracked_task_title",
             "tracked_minutes",
             "app_hint",
+            "captured_at",
         }
-        return {k: v for k, v in entry.items() if k in allowed}
+        result = {k: v for k, v in entry.items() if k in allowed}
+        if "captured_at" in result and isinstance(result["captured_at"], str):
+            try:
+                result["captured_at"] = datetime.fromisoformat(result["captured_at"])
+            except ValueError as e:
+                raise ManifestParseError(
+                    f"invalid captured_at ISO-8601 string: {result['captured_at']!r}: {e}"
+                ) from e
+        return result

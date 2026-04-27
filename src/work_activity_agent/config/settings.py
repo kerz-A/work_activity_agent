@@ -33,17 +33,35 @@ class LLMSettings(BaseSettings):
     huggingface_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
-    max_concurrent_vision: Annotated[int, Field(ge=1, le=32)] = 4
-    request_timeout_s: Annotated[int, Field(ge=10, le=600)] = 60
+    max_concurrent_vision: Annotated[int, Field(ge=1, le=32)] = 2
+    request_timeout_s: Annotated[int, Field(ge=10, le=600)] = 180
     soft_budget_usd: Annotated[float, Field(ge=0.0)] = 5.0
-    models_config_path: Path = Path("configs/models.yaml")
+    # privacy_strict=True: при ошибке image redaction скрин НЕ попадает в Vision
+    # (приоритет приватности над полнотой отчёта). По умолчанию строго —
+    # в Docker Tesseract всегда есть, а на голой машине пользователь должен
+    # явно ослабить флаг и взять на себя риск утечки PII.
+    privacy_strict: bool = True
+    profile: Literal["local", "cloud"] = "local"
+    models_config_path: Path | None = None
+
+    @cached_property
+    def resolved_models_config_path(self) -> Path:
+        """Резолв пути к models.yaml: явный override → profile-specific → default."""
+        if self.models_config_path is not None:
+            return self.models_config_path
+        profile_path = Path(f"configs/models.{self.profile}.yaml")
+        if profile_path.exists():
+            return profile_path
+        # Backward-compat: старый configs/models.yaml без профиля
+        return Path("configs/models.yaml")
 
     @cached_property
     def model_aliases(self) -> dict[str, str]:
         """Загрузить alias → real model маппинг из YAML."""
-        if not self.models_config_path.exists():
+        path = self.resolved_models_config_path
+        if not path.exists():
             return {}
-        with self.models_config_path.open(encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         if not isinstance(data, dict):
             raise ValueError(f"models config must be a dict, got {type(data).__name__}")
@@ -95,6 +113,16 @@ class RiskSettings(BaseSettings):
     @cached_property
     def vision_config(self) -> dict[str, Any]:
         result = self._raw_config.get("vision", {})
+        return dict(result) if isinstance(result, dict) else {}
+
+    @cached_property
+    def classifier_config(self) -> dict[str, Any]:
+        result = self._raw_config.get("classifier", {})
+        return dict(result) if isinstance(result, dict) else {}
+
+    @cached_property
+    def relevance_config(self) -> dict[str, Any]:
+        result = self._raw_config.get("relevance", {})
         return dict(result) if isinstance(result, dict) else {}
 
 
