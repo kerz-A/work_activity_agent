@@ -92,9 +92,7 @@ def make_relevance_node(deps: Deps) -> Callable[[AgentState], Awaitable[AgentSta
                     )
 
         try:
-            await asyncio.gather(
-                *(_evaluate(sid, vr) for sid, vr in state.vision_results.items())
-            )
+            await asyncio.gather(*(_evaluate(sid, vr) for sid, vr in state.vision_results.items()))
         except LLMBudgetExceededError as e:
             log.error(
                 "relevance.budget_exceeded",

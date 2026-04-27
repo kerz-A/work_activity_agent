@@ -46,13 +46,11 @@ class VisionResult(BaseModel):
     visible_application: str
     visible_site: str | None = None
     visible_page_type: str | None = None
-    visible_text: Annotated[
-        tuple[str, ...], FlexibleStringTuple, Field(max_length=20)
-    ] = ()
+    visible_text: Annotated[tuple[str, ...], FlexibleStringTuple, Field(max_length=20)] = ()
     interpreted_activity: str
-    extracted_metadata: Annotated[
-        ExtractedMetadata, _FlexibleExtractedMetadata
-    ] = ExtractedMetadata()
+    extracted_metadata: Annotated[ExtractedMetadata, _FlexibleExtractedMetadata] = (
+        ExtractedMetadata()
+    )
     confidence: Annotated[float, Field(ge=0.0, le=1.0)]
     model_used: str
 

@@ -46,11 +46,7 @@ _PRODUCTIVE_CATEGORIES = frozenset(
 def _validate_thresholds(thresholds: dict[str, int], *, name: str) -> None:
     """Проверить, что low < medium. Конфиг с обратным порядком сделает _level()
     некорректным (medium-уровень никогда не сработает), но без явной ошибки."""
-    if (
-        "low" in thresholds
-        and "medium" in thresholds
-        and thresholds["low"] >= thresholds["medium"]
-    ):
+    if "low" in thresholds and "medium" in thresholds and thresholds["low"] >= thresholds["medium"]:
         raise ValueError(
             f"{name}: thresholds invalid — "
             f"low ({thresholds['low']}) must be < medium ({thresholds['medium']})"

@@ -61,17 +61,13 @@ def make_reports_node(deps: Deps) -> Callable[[AgentState], AgentState]:
 
             screenshot_id_set = {s.id for s in screenshots}
             employee_flags = tuple(
-                f
-                for f in all_flags
-                if any(sid in screenshot_id_set for sid in f.screenshot_ids)
+                f for f in all_flags if any(sid in screenshot_id_set for sid in f.screenshot_ids)
             )
             evidence_links = tuple(
                 evidence_builder.build_evidence_links(employee_flags, screenshots_by_id)
             )
 
-            breakdown = _build_breakdown(
-                screenshots, state.classifications, minutes_per_screenshot
-            )
+            breakdown = _build_breakdown(screenshots, state.classifications, minutes_per_screenshot)
             tracked_time = _compute_tracked_time(screenshots, minutes_per_screenshot)
             manager_summary = _build_manager_summary(
                 employee_id, risk_score, work_score, employee_flags

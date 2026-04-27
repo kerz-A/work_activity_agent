@@ -30,9 +30,7 @@ def _make_screenshot(idx: int, employee: str, minute_offset: int) -> Screenshot:
     )
 
 
-def _make_classification(
-    sid: str, activity: ActivityType
-) -> ClassificationResult:
+def _make_classification(sid: str, activity: ActivityType) -> ClassificationResult:
     return ClassificationResult(
         screenshot_id=sid,
         activity_type=activity,
@@ -58,9 +56,7 @@ activities_strategy = st.lists(st.sampled_from(_ACTIVITIES), min_size=0, max_siz
     deadline=None,
 )
 @given(
-    minute_offsets=st.lists(
-        st.integers(min_value=0, max_value=600), min_size=0, max_size=30
-    ),
+    minute_offsets=st.lists(st.integers(min_value=0, max_value=600), min_size=0, max_size=30),
     employees=employees_strategy,
 )
 def test_group_by_employee_and_hour_partitions_input(
@@ -68,9 +64,7 @@ def test_group_by_employee_and_hour_partitions_input(
 ) -> None:
     """Каждый скрин попадает ровно в одну группу; интервал группы = 1 час."""
     n = min(len(minute_offsets), len(employees))
-    screenshots = [
-        _make_screenshot(i, employees[i], minute_offsets[i]) for i in range(n)
-    ]
+    screenshots = [_make_screenshot(i, employees[i], minute_offsets[i]) for i in range(n)]
 
     groups = TimelineGrouper().group_by_employee_and_hour(screenshots)
 
@@ -100,8 +94,7 @@ def test_find_consecutive_runs_respects_min_count(
     """Каждый возвращённый run длины >= min_count, и все его элементы из target_categories."""
     screenshots = [_make_screenshot(i, "dev_1", i) for i in range(len(activities))]
     classifications = {
-        s.id: _make_classification(s.id, a)
-        for s, a in zip(screenshots, activities, strict=True)
+        s.id: _make_classification(s.id, a) for s, a in zip(screenshots, activities, strict=True)
     }
     target = {ActivityType.IDLE_STATIC.value}
 
@@ -127,8 +120,7 @@ def test_runs_total_length_does_not_exceed_target_count(
     """Сумма длин runs ≤ числу скринов с target activity."""
     screenshots = [_make_screenshot(i, "dev_1", i) for i in range(len(activities))]
     classifications = {
-        s.id: _make_classification(s.id, a)
-        for s, a in zip(screenshots, activities, strict=True)
+        s.id: _make_classification(s.id, a) for s, a in zip(screenshots, activities, strict=True)
     }
     target = {ActivityType.IDLE_STATIC.value}
 
@@ -147,8 +139,7 @@ def test_empty_target_returns_no_runs(activities: list[ActivityType]) -> None:
     """С пустым набором target категорий — ни одного run."""
     screenshots = [_make_screenshot(i, "dev_1", i) for i in range(len(activities))]
     classifications = {
-        s.id: _make_classification(s.id, a)
-        for s, a in zip(screenshots, activities, strict=True)
+        s.id: _make_classification(s.id, a) for s, a in zip(screenshots, activities, strict=True)
     }
 
     runs = TimelineGrouper().find_consecutive_runs(

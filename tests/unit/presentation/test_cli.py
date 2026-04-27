@@ -59,7 +59,9 @@ class TestCheckPython:
 
 class TestCheckTesseract:
     def test_found_in_path(self, capsys: pytest.CaptureFixture[str]) -> None:
-        with patch("work_activity_agent.presentation.cli.shutil.which", return_value="/usr/bin/tesseract"):
+        with patch(
+            "work_activity_agent.presentation.cli.shutil.which", return_value="/usr/bin/tesseract"
+        ):
             failures = _check_tesseract(privacy_strict=True)
         assert failures == 0
         assert "[OK]" in capsys.readouterr().out
@@ -168,9 +170,7 @@ class TestCheckSpacy:
 
 
 class TestCheckConfigs:
-    def test_both_configs_exist(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_both_configs_exist(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         from work_activity_agent.config.settings import Settings
 
         models_yaml = tmp_path / "models.yaml"
@@ -189,9 +189,7 @@ class TestCheckConfigs:
         assert failures == 0
         assert "[OK]" in captured.out
 
-    def test_missing_config_fails(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_missing_config_fails(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         from work_activity_agent.config.settings import Settings
 
         settings = Settings()

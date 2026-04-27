@@ -168,4 +168,6 @@ class Settings(BaseSettings):
 
     def resolved_redacted_dir(self) -> Path:
         """Резолв пути для редактированных скрин-шотов (явный override → checkpoint_dir/redacted)."""
-        return self.redacted_dir if self.redacted_dir is not None else self.checkpoint_dir / "redacted"
+        return (
+            self.redacted_dir if self.redacted_dir is not None else self.checkpoint_dir / "redacted"
+        )

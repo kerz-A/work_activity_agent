@@ -68,9 +68,7 @@ def timeline_input(tmp_path: Path) -> Path:
                     "project_id": "proj",
                     "task_id": "TASK-T",
                     "tracked_task_title": "Build feature",
-                    "captured_at": datetime(
-                        2026, 4, 22, hour, minute, tzinfo=UTC
-                    ).isoformat(),
+                    "captured_at": datetime(2026, 4, 22, hour, minute, tzinfo=UTC).isoformat(),
                     "tracked_minutes": 5,
                 }
             )
@@ -139,9 +137,7 @@ def _setup_fake(fake: FakeLLMProvider) -> None:
 
 
 @pytest.mark.integration
-async def test_graph_detects_timeline_patterns(
-    timeline_input: Path, test_deps: Deps
-) -> None:
+async def test_graph_detects_timeline_patterns(timeline_input: Path, test_deps: Deps) -> None:
     _setup_fake(test_deps.llm)  # type: ignore[arg-type]
 
     graph = build_graph(test_deps)

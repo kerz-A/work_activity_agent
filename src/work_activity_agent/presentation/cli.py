@@ -116,9 +116,7 @@ def _check_tesseract(privacy_strict: bool) -> int:
             "brew install tesseract (Mac) / https://github.com/UB-Mannheim/tesseract/wiki (Windows)"
         )
         return 1
-    typer.echo(
-        "[WARN] Tesseract не найден. privacy_strict=false → оригинал PII попадёт в Vision."
-    )
+    typer.echo("[WARN] Tesseract не найден. privacy_strict=false → оригинал PII попадёт в Vision.")
     return 0
 
 

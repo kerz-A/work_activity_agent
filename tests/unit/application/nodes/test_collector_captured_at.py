@@ -81,9 +81,7 @@ def test_falls_back_to_mtime_without_captured_at_in_manifest(
     assert abs(state.screenshots[0].captured_at.timestamp() - mtime_before) < 2.0
 
 
-def test_filename_convention_takes_priority_over_mtime(
-    test_deps: Deps, input_dir: Path
-) -> None:
+def test_filename_convention_takes_priority_over_mtime(test_deps: Deps, input_dir: Path) -> None:
     """Имя файла по конвенции {emp}__{proj}__{task}__{ts} обходит mtime."""
     name = "dev1__proj__T1__2026-03-15T08-30-00.png"
     file_path = input_dir / name

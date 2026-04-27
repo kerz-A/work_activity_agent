@@ -83,6 +83,9 @@ def test_lax_mode_falls_back_to_original_on_redaction_failure(
     result = node(state_with_one_screenshot)
 
     assert "shot" in result.redacted_screenshots
-    assert result.redacted_screenshots["shot"].redacted_path == state_with_one_screenshot.screenshots[0].path
+    assert (
+        result.redacted_screenshots["shot"].redacted_path
+        == state_with_one_screenshot.screenshots[0].path
+    )
     assert len(result.errors) == 1
     assert "using original" in result.errors[0].message

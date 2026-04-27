@@ -49,6 +49,7 @@ def _configure_tesseract() -> None:
     if detected is not None:
         pytesseract.pytesseract.tesseract_cmd = str(detected)
 
+
 # Имя spaCy NLP-модели, которую мы предустанавливаем (Dockerfile + локально через uv).
 # Presidio Analyzer по умолчанию ищет `en_core_web_lg` (~500 MB) и при отсутствии пытается
 # скачать через pip — что в Docker (без pip в venv) даёт "No package installer found".

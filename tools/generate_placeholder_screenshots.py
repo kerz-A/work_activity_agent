@@ -242,7 +242,7 @@ def _scenarios() -> list[Scenario]:
                 category_dir="other_project",
                 file_name=f"dev1_otherproject_{i + 1:03d}.png",
                 title="Other project mock",
-                subtitle=f"Repo: someone-else/{['side-project','consulting','hobby-app'][i]}",
+                subtitle=f"Repo: someone-else/{['side-project', 'consulting', 'hobby-app'][i]}",
                 bg_color=COLORS["other_project"],
                 employee_id="developer_1",
                 project_id="client_crm",

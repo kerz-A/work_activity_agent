@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -101,7 +101,7 @@ def main() -> None:
                 page.screenshot(path=str(out_path), full_page=False)
                 print(f"  OK {scenario.name}")
                 page.close()
-            except Exception as e:  # noqa: BLE001 — best-effort capture
+            except Exception as e:
                 print(f"  FAIL {scenario.name}: {type(e).__name__}: {e}")
 
         browser.close()

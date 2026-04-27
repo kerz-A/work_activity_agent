@@ -72,9 +72,7 @@ class TestStaticRunDetection:
         assert pattern.employee_id == "dev_1"
         assert len(pattern.screenshot_ids) == 4
 
-    async def test_static_run_below_threshold(
-        self, test_deps: Deps, tmp_path: Path
-    ) -> None:
+    async def test_static_run_below_threshold(self, test_deps: Deps, tmp_path: Path) -> None:
         screenshots = [_ss(f"s{i}", 9, i * 5) for i in range(3)]
         classifications = {s.id: _cls(s.id, ActivityType.IDLE_STATIC) for s in screenshots}
 
@@ -105,13 +103,9 @@ class TestStaticRunDetection:
 
 @pytest.mark.asyncio
 class TestJobSearchBurst:
-    async def test_job_search_burst_detected(
-        self, test_deps: Deps, tmp_path: Path
-    ) -> None:
+    async def test_job_search_burst_detected(self, test_deps: Deps, tmp_path: Path) -> None:
         screenshots = [_ss(f"j{i}", 14, i * 5) for i in range(3)]
-        classifications = {
-            s.id: _cls(s.id, ActivityType.JOB_SEARCH_SIGNAL) for s in screenshots
-        }
+        classifications = {s.id: _cls(s.id, ActivityType.JOB_SEARCH_SIGNAL) for s in screenshots}
 
         node = make_timeline_node(test_deps)
         result = await node(_state(screenshots, classifications, tmp_path))
@@ -123,9 +117,7 @@ class TestJobSearchBurst:
         assert burst.requires_review is True
         assert len(burst.screenshot_ids) == 3
 
-    async def test_job_search_burst_split_by_hour(
-        self, test_deps: Deps, tmp_path: Path
-    ) -> None:
+    async def test_job_search_burst_split_by_hour(self, test_deps: Deps, tmp_path: Path) -> None:
         # 2 job_search в 14:55 и 2 в 15:05 — разные часы, ни один час не наберёт >=3.
         screenshots = [
             _ss("j1", 14, 50),
@@ -133,9 +125,7 @@ class TestJobSearchBurst:
             _ss("j3", 15, 5),
             _ss("j4", 15, 10),
         ]
-        classifications = {
-            s.id: _cls(s.id, ActivityType.JOB_SEARCH_SIGNAL) for s in screenshots
-        }
+        classifications = {s.id: _cls(s.id, ActivityType.JOB_SEARCH_SIGNAL) for s in screenshots}
 
         node = make_timeline_node(test_deps)
         result = await node(_state(screenshots, classifications, tmp_path))
@@ -145,9 +135,7 @@ class TestJobSearchBurst:
 
     async def test_below_threshold(self, test_deps: Deps, tmp_path: Path) -> None:
         screenshots = [_ss(f"j{i}", 14, i * 5) for i in range(2)]
-        classifications = {
-            s.id: _cls(s.id, ActivityType.JOB_SEARCH_SIGNAL) for s in screenshots
-        }
+        classifications = {s.id: _cls(s.id, ActivityType.JOB_SEARCH_SIGNAL) for s in screenshots}
 
         node = make_timeline_node(test_deps)
         result = await node(_state(screenshots, classifications, tmp_path))
@@ -164,9 +152,7 @@ class TestMultiEmployeeIsolation:
         dev1_shots = [_ss(f"a{i}", 9, i * 5, employee="dev_1") for i in range(4)]
         dev2_shots = [_ss(f"b{i}", 9, i * 5, employee="dev_2") for i in range(4)]
         screenshots = dev1_shots + dev2_shots
-        classifications = {
-            s.id: _cls(s.id, ActivityType.IDLE_STATIC) for s in screenshots
-        }
+        classifications = {s.id: _cls(s.id, ActivityType.IDLE_STATIC) for s in screenshots}
 
         node = make_timeline_node(test_deps)
         result = await node(_state(screenshots, classifications, tmp_path))

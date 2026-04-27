@@ -37,9 +37,7 @@ class ClassificationResult(BaseModel):
     screenshot_id: Annotated[str, Field(min_length=1)]
     activity_type: ActivityType
     category: str
-    evidence: Annotated[
-        tuple[str, ...], FlexibleStringTuple, Field(min_length=1, max_length=10)
-    ]
+    evidence: Annotated[tuple[str, ...], FlexibleStringTuple, Field(min_length=1, max_length=10)]
     confidence: Annotated[float, Field(ge=0.0, le=1.0)]
 
 

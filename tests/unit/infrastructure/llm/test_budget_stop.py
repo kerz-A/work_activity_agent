@@ -65,9 +65,7 @@ async def test_within_budget_does_not_raise(settings_low_budget: LLMSettings) ->
         patch("litellm.acompletion", return_value=response),
         patch("litellm.completion_cost", return_value=0.1),  # меньше budget
     ):
-        result = await provider.classify(
-            prompt="test", response_schema=ClassificationResult
-        )
+        result = await provider.classify(prompt="test", response_schema=ClassificationResult)
 
     assert result.screenshot_id == "s1"
     assert provider.cost_total_usd == pytest.approx(0.1)
