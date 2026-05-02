@@ -17,8 +17,13 @@ from work_activity_agent.domain.models.classification import (
     ClassificationResult,
     RelevanceResult,
 )
+from work_activity_agent.domain.models.ocr_signals import OCRSignals
 from work_activity_agent.domain.models.risk import RiskScore
 from work_activity_agent.domain.models.screenshot import Screenshot
+
+# Категории доменов, попадание в которые поднимает domain_blacklist_hits.
+# Соответствует ключам в configs/domain_rules.yaml: domain_categories.
+_RISK_DOMAIN_CATEGORIES = frozenset({"job_search", "entertainment", "personal_messaging"})
 
 # Категории, считающиеся "статичными" для метрики static_ratio
 _STATIC_CATEGORIES = frozenset({ActivityType.IDLE_STATIC.value})
@@ -72,9 +77,12 @@ class RiskCalculator:
         screenshots: list[Screenshot],
         classifications: dict[str, ClassificationResult],
         relevances: dict[str, RelevanceResult],
+        ocr_signals: dict[str, OCRSignals] | None = None,
     ) -> RiskScore:
         """Посчитать RiskScore по метрикам сотрудника."""
-        components = self._compute_components(screenshots, classifications, relevances)
+        components = self._compute_components(
+            screenshots, classifications, relevances, ocr_signals or {}
+        )
         score = self._weighted_score(components)
         level = self._level(score)
         summary = self._build_summary(components, score, level)
@@ -95,6 +103,7 @@ class RiskCalculator:
         screenshots: list[Screenshot],
         classifications: dict[str, ClassificationResult],
         relevances: dict[str, RelevanceResult],
+        ocr_signals: dict[str, OCRSignals],
     ) -> dict[str, float]:
         n = len(screenshots)
         if n == 0:
@@ -106,21 +115,25 @@ class RiskCalculator:
         non_work_count = 0
         productive_count = 0
         tracked_drift_count = 0
+        domain_blacklist_count = 0
         screenshot_ids: set[str] = set()
         for s in screenshots:
             screenshot_ids.add(s.id)
             if s.metadata.tracked_minutes is None:
                 tracked_drift_count += 1
             cls = classifications.get(s.id)
-            if cls is None:
-                continue
-            activity = cls.activity_type.value
-            if activity in _STATIC_CATEGORIES:
-                static_count += 1
-            if activity in _NON_WORK_CATEGORIES:
-                non_work_count += 1
-            if activity in _PRODUCTIVE_CATEGORIES:
-                productive_count += 1
+            if cls is not None:
+                activity = cls.activity_type.value
+                if activity in _STATIC_CATEGORIES:
+                    static_count += 1
+                if activity in _NON_WORK_CATEGORIES:
+                    non_work_count += 1
+                if activity in _PRODUCTIVE_CATEGORIES:
+                    productive_count += 1
+            # Detection через OCR — независимо от LLM-классификатора.
+            ocr = ocr_signals.get(s.id)
+            if ocr is not None and ocr.domain_category in _RISK_DOMAIN_CATEGORIES:
+                domain_blacklist_count += 1
 
         # task_mismatch: доля скринов ЭТОГО сотрудника с relevance=low.
         # Фильтруем relevances только по screenshot_ids этого сотрудника — иначе при
@@ -135,6 +148,8 @@ class RiskCalculator:
         def _clamp(v: float) -> float:
             return max(0.0, min(1.0, v))
 
+        # domain_blacklist_hits: 10% скринов в blacklist → фул-вес.
+        # Это даёт risk-floor независимо от качества LLM-классификации.
         return {
             "static_ratio": _clamp(static_count / n),
             "task_mismatch": _clamp(low_relevance_count / n) if relevances else 0.0,
@@ -143,6 +158,7 @@ class RiskCalculator:
             "pattern_repetition": 0.0,  # требует cross-day данных, в MVP = 0
             "tracked_time_drift": _clamp(tracked_drift_count / n),
             "manager_notes": 0.0,  # заглушка — нет UI менеджера
+            "domain_blacklist_hits": _clamp(domain_blacklist_count / max(1, n * 0.1)),
         }
 
     def _weighted_score(self, components: dict[str, float]) -> int:
@@ -164,7 +180,12 @@ class RiskCalculator:
             parts.append(f"Доля нерабочих сайтов: {components['non_work_ratio']:.0%}.")
         if components.get("task_mismatch", 0) > 0.2:
             parts.append(f"Несоответствие задаче: {components['task_mismatch']:.0%} скринов.")
-        if level == RiskLevel.LOW:
+        if components.get("domain_blacklist_hits", 0) > 0:
+            parts.append(
+                "OCR обнаружил скрины с доменами вне рабочего профиля "
+                "(job_search/entertainment/personal_messaging)."
+            )
+        if level == RiskLevel.LOW and components.get("domain_blacklist_hits", 0) == 0:
             parts.append("Признаков нарушения не обнаружено.")
         return " ".join(parts)
 

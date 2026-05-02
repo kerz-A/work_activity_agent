@@ -3,13 +3,14 @@
 
 risk_score:
   weights:
-    static_ratio: 0.25                # доля статичных скриншотов
-    task_mismatch: 0.20               # несоответствие активности задаче
-    non_work_ratio: 0.15              # доля нерабочих сайтов/приложений
-    no_progress: 0.15                 # отсутствие признаков прогресса
-    pattern_repetition: 0.10          # повторяемость паттерна по дням
-    tracked_time_drift: 0.10          # расхождение с трекнутым временем
+    static_ratio: 0.20                # доля статичных скриншотов
+    task_mismatch: 0.15               # несоответствие активности задаче (LLM relevance)
+    non_work_ratio: 0.10              # доля нерабочих сайтов/приложений (LLM classifier)
+    no_progress: 0.10                 # отсутствие признаков прогресса
+    pattern_repetition: 0.05          # повторяемость паттерна по дням
+    tracked_time_drift: 0.05          # расхождение с трекнутым временем
     manager_notes: 0.05               # ручные замечания (заглушка → 0 в MVP)
+    domain_blacklist_hits: 0.30       # детерминистичный risk-floor по OCR-домену (job_search/entertainment/personal_messaging)
   thresholds:
     low: 30                           # < low  → RiskLevel.LOW
     medium: 60                        # < medium → RiskLevel.MEDIUM, иначе HIGH

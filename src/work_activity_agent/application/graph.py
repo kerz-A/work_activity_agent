@@ -11,6 +11,7 @@ from typing import Any
 from work_activity_agent.application.nodes.classifier import make_classifier_node
 from work_activity_agent.application.nodes.collector import make_collector_node
 from work_activity_agent.application.nodes.image_redaction import make_image_redaction_node
+from work_activity_agent.application.nodes.ocr_signals import make_ocr_signals_node
 from work_activity_agent.application.nodes.relevance import make_relevance_node
 from work_activity_agent.application.nodes.reports import make_reports_node
 from work_activity_agent.application.nodes.scoring import make_scoring_node
@@ -35,6 +36,7 @@ def build_graph(deps: Deps) -> Any:
 
     graph.add_node("collector", make_collector_node(deps))
     graph.add_node("image_redaction", make_image_redaction_node(deps))
+    graph.add_node("ocr_signals", make_ocr_signals_node(deps))
     graph.add_node("vision", make_vision_node(deps))
     graph.add_node("classifier", make_classifier_node(deps))
     graph.add_node("relevance", make_relevance_node(deps))
@@ -44,7 +46,8 @@ def build_graph(deps: Deps) -> Any:
 
     graph.set_entry_point("collector")
     graph.add_edge("collector", "image_redaction")
-    graph.add_edge("image_redaction", "vision")
+    graph.add_edge("image_redaction", "ocr_signals")
+    graph.add_edge("ocr_signals", "vision")
     graph.add_edge("vision", "classifier")
     graph.add_edge("classifier", "relevance")
     graph.add_edge("relevance", "timeline")

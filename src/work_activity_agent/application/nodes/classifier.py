@@ -22,7 +22,19 @@ from work_activity_agent.domain.errors import (
     LLMResponseValidationError,
 )
 from work_activity_agent.domain.models.classification import ClassificationResult
+from work_activity_agent.domain.models.ocr_signals import OCRSignals
 from work_activity_agent.infrastructure.observability.logging import get_logger
+
+# Detrministic override map: ocr_signals.domain_category → activity_type.
+# Применяется ПОСЛЕ ответа LLM. Слабые модели (Gemma 3 4B) систематически
+# игнорируют hard-правила в промпте и возвращают productive_work для всего.
+# Этот rescue-слой компенсирует баг LLM — категория, обнаруженная regex'ами
+# по OCR-тексту, доверительнее, чем ответ слабой vision/classifier-модели.
+_OCR_OVERRIDE_MAP: dict[str, ActivityType] = {
+    "job_search": ActivityType.JOB_SEARCH_SIGNAL,
+    "entertainment": ActivityType.NON_WORK,
+    "personal_messaging": ActivityType.SENSITIVE_PRIVATE,
+}
 
 
 def make_classifier_node(deps: Deps) -> Callable[[AgentState], Awaitable[AgentState]]:
@@ -49,13 +61,28 @@ def make_classifier_node(deps: Deps) -> Callable[[AgentState], Awaitable[AgentSt
 
         prompt_template = deps.prompt_loader.load("classify_activity")
 
+        # Индекс по screenshot_id → метаданные. Нужен Classifier-у, чтобы
+        # подмешать tracked_task_title в промпт.
+        screenshots_by_id = {s.id: s for s in state.screenshots}
+
         results: dict[str, ClassificationResult] = {}
         errors: list[NodeError] = []
 
         async def _classify(screenshot_id: str, vision_payload: str) -> None:
+            screenshot = screenshots_by_id.get(screenshot_id)
+            tracked_task = (
+                screenshot.metadata.tracked_task_title if screenshot is not None else None
+            )
+            ocr = state.ocr_signals.get(screenshot_id)
             prompt = prompt_template.render(
                 screenshot_id=screenshot_id,
                 vision_json=vision_payload,
+                tracked_task=tracked_task,
+                ocr_domain=ocr.detected_domain if ocr else None,
+                ocr_domain_category=ocr.domain_category if ocr else None,
+                ocr_page_kind=ocr.detected_page_kind if ocr else None,
+                ocr_app_kind=ocr.detected_app_kind if ocr else None,
+                ocr_tab_titles=list(ocr.tab_titles) if ocr else [],
             )
             async with semaphore:
                 try:
@@ -64,7 +91,10 @@ def make_classifier_node(deps: Deps) -> Callable[[AgentState], Awaitable[AgentSt
                         response_schema=ClassificationResult,
                         model_alias=prompt_template.model_alias,
                     )
-                    results[screenshot_id] = result
+                    # Rescue rule: если OCR детерминистично определил категорию
+                    # из risk-set — переписываем ответ LLM. Слабые модели
+                    # (Gemma 4B) систематически игнорируют hard-правила.
+                    results[screenshot_id] = _apply_ocr_override(result, ocr, log)
                     return
                 except LLMNetworkError as e:
                     log.warning(
@@ -148,4 +178,46 @@ def _fallback_result(screenshot_id: str, error_kind: str) -> ClassificationResul
         category="classification_failed",
         evidence=(f"classification_failed:{error_kind}",),
         confidence=0.0,
+    )
+
+
+def _apply_ocr_override(
+    llm_result: ClassificationResult,
+    ocr: OCRSignals | None,
+    log: object,
+) -> ClassificationResult:
+    """Если ocr_signals детерминистично детектил категорию из risk-set —
+    перезаписываем ответ LLM. Это компенсация известного бага слабых моделей,
+    которые систематически возвращают productive_work несмотря на hard-правила
+    в промпте.
+    """
+    if ocr is None or ocr.domain_category is None:
+        return llm_result
+
+    override_activity = _OCR_OVERRIDE_MAP.get(ocr.domain_category)
+    if override_activity is None or llm_result.activity_type == override_activity:
+        return llm_result
+
+    # Логируем override — менеджер должен видеть, что ответ LLM был перебит OCR-сигналом.
+    if hasattr(log, "info"):
+        log.info(  # type: ignore[attr-defined]
+            "classifier.ocr_override",
+            screenshot_id=llm_result.screenshot_id,
+            llm_activity=llm_result.activity_type.value,
+            override_to=override_activity.value,
+            ocr_domain=ocr.detected_domain,
+            ocr_category=ocr.domain_category,
+        )
+
+    override_evidence = (
+        f"OCR override: detected_domain={ocr.detected_domain or 'unknown'}, "
+        f"category={ocr.domain_category} (LLM said {llm_result.activity_type.value})",
+        *llm_result.evidence,
+    )
+    return llm_result.model_copy(
+        update={
+            "activity_type": override_activity,
+            "category": ocr.domain_category,
+            "evidence": override_evidence[:10],  # max 10 по схеме
+        }
     )

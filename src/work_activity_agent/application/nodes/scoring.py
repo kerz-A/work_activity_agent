@@ -54,6 +54,7 @@ def make_scoring_node(deps: Deps) -> Callable[[AgentState], AgentState]:
                 screenshots=screenshots,
                 classifications=state.classifications,
                 relevances=state.relevances,
+                ocr_signals=state.ocr_signals,
             )
             # Считаем сколько risk_flags применимо к этому сотруднику
             employee_patterns = patterns_by_employee.get(employee_id, [])

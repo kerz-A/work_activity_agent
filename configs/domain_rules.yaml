@@ -1,0 +1,192 @@
+# Правила DomainClassifier — детерминистичные регулярки и сопоставление доменов
+# к категориям активности. Используется узлом ocr_signals (без LLM).
+#
+# domain_categories: домен → категория для domain_blacklist_hits в Risk Calculator
+#                    и подсказка для Classifier через промпт.
+# page_kinds:        regex по URL → тип страницы (vacancy_list, video_feed, ...)
+# app_markers:       текст-паттерны для эвристики detected_app_kind.
+
+# ----------------------------------------------------------------------------
+# Категории доменов (для risk-floor и classifier-promptа)
+# ----------------------------------------------------------------------------
+domain_categories:
+  job_search:
+    - hh.ru
+    - headhunter.ru
+    - linkedin.com
+    - superjob.ru
+    - rabota.ru
+    - habr.com/career
+    - geekjob.ru
+    - career.habr.com
+    - getmatch.ru
+    - vakansii.ru
+  entertainment:
+    - youtube.com
+    - youtu.be
+    - vk.com
+    - vk.ru
+    - tiktok.com
+    - twitch.tv
+    - rutube.ru
+    - dzen.ru
+    - pikabu.ru
+    - 4pda.to
+  personal_messaging:
+    - t.me
+    - web.telegram.org
+    - vk.com/im
+  productive_office:
+    - docs.google.com
+    - sheets.google.com
+    - drive.google.com
+    - notion.so
+    - confluence.atlassian.com
+    - bitrix24.com
+    - bitrix24.ru
+    - jira.atlassian.com
+    - figma.com
+    - miro.com
+  productive_dev:
+    - github.com
+    - gitlab.com
+    - bitbucket.org
+    - stackoverflow.com
+    - developer.mozilla.org
+  productive_communication:
+    - slack.com
+    - app.slack.com
+    - discord.com
+    - meet.google.com
+    - zoom.us
+    - teams.microsoft.com
+
+# ----------------------------------------------------------------------------
+# Тип страницы по паттерну URL (regex matched against URL or path)
+# ----------------------------------------------------------------------------
+page_kinds:
+  - pattern: "hh\\.ru/(vacancy|search/vacancy|resumes_my)"
+    kind: "vacancy_list"
+  - pattern: "hh\\.ru/applicant"
+    kind: "applicant_profile"
+  - pattern: "linkedin\\.com/jobs"
+    kind: "vacancy_list"
+  - pattern: "youtube\\.com/watch"
+    kind: "video_watch"
+  - pattern: "youtube\\.com/?$"
+    kind: "video_feed"
+  - pattern: "youtube\\.com/feed"
+    kind: "video_feed"
+  - pattern: "youtube\\.com/shorts"
+    kind: "shorts"
+  - pattern: "github\\.com/[^/]+/[^/]+/?$"
+    kind: "repository"
+  - pattern: "github\\.com/[^/]+/[^/]+/pull"
+    kind: "pull_request"
+  - pattern: "github\\.com/[^/]+/[^/]+/issues"
+    kind: "issue_tracker"
+  - pattern: "docs\\.google\\.com/document"
+    kind: "document_edit"
+  - pattern: "docs\\.google\\.com/spreadsheets"
+    kind: "spreadsheet_edit"
+  - pattern: "discord\\.com/channels"
+    kind: "chat_channel"
+  - pattern: "bitrix24\\."
+    kind: "task_tracker"
+  - pattern: "jira\\."
+    kind: "task_tracker"
+
+# ----------------------------------------------------------------------------
+# Content-keyword fallback. Если domain_categories не сработала (Tesseract не
+# увидел домен в URL bar — частая ситуация на низком разрешении или с русским
+# рендером), проверяем характерные фразы. Достаточно 2+ совпадений из одной
+# категории чтобы поставить domain_category=ключ.
+# Все ключи lowercase, substring match.
+# ----------------------------------------------------------------------------
+content_keywords:
+  job_search:
+    - "senior ml engineer"
+    - "ml engineer"
+    - "ai разработчик"
+    - "ai developer"
+    - "python developer"
+    - "junior / middle"
+    - "junior/middle"
+    - "junior developer"
+    - "middle developer"
+    - "вакансии"
+    - "вакансия"
+    - "откликнуться"
+    - "social media holding"
+    - "ai tools specialist"
+    - "tools specialist"
+    - "ml специалист"
+  entertainment:
+    - "phonk"
+    - "shorts"
+    - "fiba3x3"
+    - "trending"
+    - "рекомендованные видео"
+  personal_messaging: []
+
+# Specific фразы, для которых ОДНОГО попадания достаточно (без агрегации).
+# Только семантически однозначные сигналы, чтобы избежать ложных срабатываний.
+strong_keywords:
+  job_search:
+    - "тестовое задание"
+    - "test task"
+    - "headhunter"
+    - "приглашение на собеседование"
+    - "оффер на позицию"
+    - "карьерные возможности"
+
+# ----------------------------------------------------------------------------
+# Эвристика типа приложения по характерным текстам в OCR
+# (всё опускается в lower(), сравнение substring)
+# ----------------------------------------------------------------------------
+app_markers:
+  ide:
+    - "file edit selection view go run terminal help"
+    - "explorer outline timeline"
+    - " - visual studio code"
+    - "› node_modules"
+    - "go to definition"
+    - "ln "
+    - "spaces:"
+  browser:
+    - "yandex.ru"
+    - "новая вкладка"
+    - "адресная строка"
+    - "ctrl+t"
+    - "address bar"
+  messenger_discord:
+    - "discord"
+    - "доступные роли"
+    - "обзор роли"
+  messenger_slack:
+    - "slack"
+    - "channels direct messages"
+  messenger_telegram:
+    - "telegram"
+    - "saved messages"
+  office_word:
+    - "microsoft word"
+    - " - word"
+  office_excel:
+    - "microsoft excel"
+    - " - excel"
+    - "формулы"
+    - "formulas"
+  office_powerpoint:
+    - "microsoft powerpoint"
+    - " - powerpoint"
+  google_docs:
+    - "google docs"
+    - "google документ"
+    - " — google docs"
+    - " — google документы"
+  google_sheets:
+    - "google sheets"
+    - "google таблицы"
+    - " — google sheets"
+    - " — google таблицы"

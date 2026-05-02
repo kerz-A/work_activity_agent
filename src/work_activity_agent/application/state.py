@@ -17,6 +17,7 @@ from work_activity_agent.domain.models.classification import (
     ClassificationResult,
     RelevanceResult,
 )
+from work_activity_agent.domain.models.ocr_signals import OCRSignals
 from work_activity_agent.domain.models.productivity import WorkActivityScore
 from work_activity_agent.domain.models.reports import (
     EmployeeReport,
@@ -55,6 +56,7 @@ class AgentState(BaseModel):
     # Промежуточные результаты (накапливаются по ходу графа)
     screenshots: list[Screenshot] = Field(default_factory=list)
     redacted_screenshots: dict[str, RedactedScreenshot] = Field(default_factory=dict)
+    ocr_signals: dict[str, OCRSignals] = Field(default_factory=dict)
     vision_results: dict[str, VisionResult] = Field(default_factory=dict)
     classifications: dict[str, ClassificationResult] = Field(default_factory=dict)
     relevances: dict[str, RelevanceResult] = Field(default_factory=dict)
